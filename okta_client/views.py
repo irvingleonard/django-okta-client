@@ -73,7 +73,7 @@ class SPConfig:
 @csrf_exempt
 def acs(request):
 	
-	next_url = request.session.get('next_url')
+	next_url = request.session.get('next_url', SPConfig.next_url(request))
 	saml_client = saml2.client.Saml2Client(config = SPConfig(request))
 	
 	response = request.POST.get('SAMLResponse', None)
