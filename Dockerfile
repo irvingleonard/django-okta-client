@@ -1,4 +1,4 @@
-FROM gcr.io/google-appengine/python
+FROM python:3
 
 RUN apt-get update
 RUN apt-get --assume-yes install xmlsec1
@@ -24,6 +24,7 @@ COPY /dist/* /tmp/
 RUN pip install --find-links /tmp/ django-okta-client
 
 #Create the project directory and populate
+RUN mkdir /app
 RUN django-admin startproject container_site /app/
 COPY settings.py /app/container_site/site_settings.py
 COPY urls.py /app/container_site/urls.py
