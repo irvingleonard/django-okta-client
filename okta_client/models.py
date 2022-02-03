@@ -9,14 +9,10 @@ from .managers import OktaUserManager
 validator_5_to_100 = RegexValidator(regex = '^.{5,100}$', message = '5 <= value length <= 100')
 nullable_5_to_100 = RegexValidator(regex = '(^.{5,100}$)|(ˆ$)', message = '5 <= value length <= 100 (or nothing)')
 
-class OktaUser(AbstractBaseUser, PermissionsMixin):
+class UpstreamOktaUser(models.Model):
 	'''Default Okta profile
 	Based on the official documentation as of (10/2021) https://developer.okta.com/docs/reference/api/users/#default-profile-properties
 	'''
-	
-	USERNAME_FIELD = 'login'
-	EMAIL_FIELD = 'email'
-	REQUIRED_FIELDS = ['email', 'firstName', 'lastName']
 	
 	login = models.CharField(primary_key = True, max_length = 100, validators=[validator_5_to_100], help_text = 'unique identifier for the user (username)')
 	email = models.EmailField(blank = False, validators=[validator_5_to_100], help_text = 'primary email address of user')
@@ -50,6 +46,19 @@ class OktaUser(AbstractBaseUser, PermissionsMixin):
 	managerId = models.CharField(blank = True, max_length = 100, help_text = "id of a user's manager")
 	manager = models.CharField(blank = True, max_length = 100, help_text = "displayName of the user's manager")
 	
+	class Meta:
+		abstract = True
+
+
+class OktaUser(AbstractBaseUser, PermissionsMixin, UpstreamOktaUser):
+	'''Django user model
+	Alternate user model for Django based on Okta profiles.
+	'''
+	
+	USERNAME_FIELD = 'login'
+	EMAIL_FIELD = 'email'
+	REQUIRED_FIELDS = ['email', 'firstName', 'lastName']
+
 	password = models.CharField(blank = True, max_length = 128, help_text = "user's password")
 	is_staff = models.BooleanField(gettext_lazy('staff status'), default = False, help_text = gettext_lazy('Designates whether the user can log into this admin site.'))
 	is_active = models.BooleanField(gettext_lazy('active'), default = True, help_text = gettext_lazy('Designates whether this user should be treated as active. \nUnselect this instead of deleting accounts.'))
