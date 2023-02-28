@@ -6,6 +6,8 @@ class OktaUserManager(BaseUserManager):
 	Custom user manager to work with the Okta user model.
 	'''
 	
+	use_in_migrations = True
+	
 	def create_user(self, login, email, firstName, lastName, password = None, **other_fields):
 		'''Create a local user
 		Create and save a user with the provided details.

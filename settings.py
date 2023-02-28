@@ -16,7 +16,7 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'false').lower() in ['true', 'yes', 'on']
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS += [
-	'okta_client.apps.OktaClientConfig',
+	'okta_client',
 ]
 
 AUTH_USER_MODEL = 'okta_client.OktaUser'
