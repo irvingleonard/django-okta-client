@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import login, logout, get_user_model
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseServerError
 from django.shortcuts import render
 from django.urls import reverse
@@ -142,6 +143,7 @@ def logout_(request):
 	LOGGER.debug('Redirecting after logout: %s', next_url)
 	return HttpResponseRedirect(next_url)
 
-
+@login_required
 def index(request):
 	return render(request, 'okta-client/index.html')
+
