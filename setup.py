@@ -39,6 +39,11 @@ setuptools.setup(
 		'pysaml2',
 	],
 	python_requires = '>=3.6',
-	
-	packages = setuptools.find_packages()
+	packages = setuptools.find_packages(),
+	package_data = {
+		'okta_client' : [
+			'templates/okta-client/*'
+		],
+	}
 )
+

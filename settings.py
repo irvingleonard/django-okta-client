@@ -44,3 +44,6 @@ if okta_metadata:
 	OKTA_CLIENT = {
 		'METADATA_AUTO_CONF_URL'	: okta_metadata,
 	}
+else:
+	TEMPLATES[0]['DIRS'].append((SITE_DIR / 'templates').resolve(strict = True))
+

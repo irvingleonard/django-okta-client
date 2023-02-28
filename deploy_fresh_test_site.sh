@@ -11,6 +11,7 @@ rm -rfv ./venv
 rm -rfv ./test_site
 (set -x; ./venv/bin/django-admin startproject test_site)
 (set -x; ln -s ../okta_client ./test_site/okta_client)
+(set -x; ln -s ../../site_templates ./test_site/test_site/templates)
 (set -x; rm -fv ./test_site/test_site/urls.py && ln -s ../../urls.py ./test_site/test_site/urls.py)
 (set -x; ln -s ../../settings.py ./test_site/test_site/local_settings.py)
 
@@ -18,12 +19,12 @@ rm -rfv ./test_site
 (set -x; ./venv/bin/python ./test_site/manage.py migrate --settings=test_site.local_settings)
 
 # Create super user
-export DJANGO_SUPERUSER_LOGIN=`whoami`
+(export DJANGO_SUPERUSER_LOGIN=`whoami`
 export DJANGO_SUPERUSER_FIRSTNAME="$DJANGO_SUPERUSER_LOGIN"
 export DJANGO_SUPERUSER_LASTNAME="$DJANGO_SUPERUSER_LOGIN"
 export DJANGO_SUPERUSER_EMAIL="$DJANGO_SUPERUSER_LOGIN@invalid.local"
 export DJANGO_SUPERUSER_PASSWORD="My sup3r p4ssw0rd!"
-echo $DJANGO_SUPERUSER_PASSWORD | ./venv/bin/python ./test_site/manage.py createsuperuser --noinput --settings=test_site.local_settings
+echo $DJANGO_SUPERUSER_PASSWORD | ./venv/bin/python ./test_site/manage.py createsuperuser --noinput --settings=test_site.local_settings)
 
 echo "Now run with:
 
