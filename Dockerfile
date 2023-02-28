@@ -1,39 +1,46 @@
 FROM python:3
 
-RUN apt-get update
-RUN apt-get --assume-yes install xmlsec1
+ARG DJANGO_SUPERUSER_LOGIN
+ARG DJANGO_SUPERUSER_FIRSTNAME
+ARG DJANGO_SUPERUSER_LASTNAME
+ARG DJANGO_SUPERUSER_EMAIL
+ARG DJANGO_SUPERUSER_PASSWORD
 
-# Create a virtualenv for dependencies. This isolates these packages from
-# system-level packages.
-# Use -p python3 or -p python3.7 to select python version. Default is version 2.
+RUN apt-get update
+RUN apt-get --assume-yes upgrade
+RUN apt-get --assume-yes install xmlsec1 python3-dev build-essential
+
+# Create a virtualenv for dependencies. This isolates these packages from system-level packages.
 RUN python3 -m venv /env
 
-# Setting these environment variables are the same as running
-# source /env/bin/activate.
+# Setting these environment variables are the same as running source /env/bin/activate.
 ENV VIRTUAL_ENV /env
 ENV PATH /env/bin:$PATH
 
-# Copy the application's requirements.txt and run pip to install all
-# dependencies into the virtualenv.
+# Upgrade the virtual environment
 RUN pip install --upgrade pip
 RUN pip install --upgrade setuptools wheel
 
-# Add the application source code.
-# ADD . /app
-COPY /dist/* /tmp/
-RUN pip install --find-links /tmp/ django-okta-client
+# Build the app into a wheel and install wheels
+RUN mkdir /source
+COPY /okta_client /source/okta_client
+COPY setup.py /source/
+WORKDIR /source
+RUN python3 setup.py bdist_wheel
+RUN pip install /source/dist/django_okta_client-*.whl
 
-#Create the project directory and populate
+# Deploy the Django site
 RUN mkdir /app
 RUN django-admin startproject container_site /app/
-COPY settings.py /app/container_site/site_settings.py
+COPY settings.py /app/container_site/local_settings.py
 COPY urls.py /app/container_site/urls.py
+COPY site_templates /app/container_site/templates
 
-#Migrate the models
-RUN env python /app/manage.py migrate --settings=container_site.site_settings
+# Migrate the models
+RUN python3 /app/manage.py migrate --settings=container_site.local_settings
 
-#Create a superuser, for the admin site
-RUN env DJANGO_SUPERUSER_USERNAME=django_admin DJANGO_SUPERUSER_PASSWORD="Sup3rSecur3PW!" DJANGO_SUPERUSER_EMAIL="django_admin@example.com" DJANGO_SUPERUSER_LOGIN=django_admin DJANGO_SUPERUSER_FIRSTNAME=Django DJANGO_SUPERUSER_LASTNAME=Admin python3 /app/manage.py createsuperuser --no-input --settings=container_site.site_settings
+# Create a superuser, for the admin site
+RUN python3 /app/manage.py createsuperuser --no-input --settings=container_site.local_settings
 
 # Run the test server to serve the application (not for production).
-CMD env OKTA_METADATA=$OKTA_METADATA python3 /app/manage.py runserver --settings=container_site.site_settings 0.0.0.0:$PORT
+ENTRYPOINT python3 /app/manage.py runserver --settings=container_site.local_settings 0.0.0.0:$PORT
