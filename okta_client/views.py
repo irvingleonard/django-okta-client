@@ -91,19 +91,24 @@ def acs(request):
 		return HttpResponse(status = 400)
 	else:
 		LOGGER.debug('Parsed SAML response: %s', authn_response)
-
-	user_identity = authn_response.get_identity()
-	if user_identity is None:
-		LOGGER.error('Malformed SAML response (get_identity failed): %s', authn_response)
-		return HttpResponse(status = 401)
-	else:
-		LOGGER.debug('Identity correctly extracted: %s', user_identity)
 	
-	defaults = {key : value[0] if isinstance(value, list) and (len(value) == 1) else value for key, value in user_identity.items() if key not in ['login']}
-	defaults['is_active'] = True
-	login_id = user_identity['login'][0] if isinstance(user_identity['login'], list) and (len(user_identity['login']) == 1) else user_identity['login']
-	LOGGER.debug('Updating or creating user "%s" with: %s', login_id, defaults)
-	target_user, created_flag = get_user_model().objects.update_or_create(defaults = defaults, login = login_id)
+	login_id = authn_response.get_subject().text
+	
+	if False:
+		#Implement API calls and pull user from Okta
+		pass
+	else:
+		user_identity = authn_response.get_identity()
+		if user_identity is None:
+			LOGGER.error('Malformed SAML response (get_identity failed): %s', authn_response)
+			return HttpResponse(status = 401)
+		else:
+			LOGGER.debug('Identity correctly extracted: %s', user_identity)
+	
+		defaults = {key : value[0] if isinstance(value, list) and (len(value) == 1) else value for key, value in user_identity.items() if key not in ['login']}
+		defaults['is_active'] = True
+		LOGGER.debug('Updating or creating user "%s" with: %s', login_id, defaults)
+		target_user, created_flag = get_user_model().objects.update_or_create(defaults = defaults, login = login_id)
 	
 	LOGGER.info('Logging in "%s"', target_user)
 	login(request, target_user)
