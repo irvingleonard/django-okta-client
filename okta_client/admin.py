@@ -9,13 +9,32 @@ class OktaUserAdmin(admin.ModelAdmin):
 	'''
 	
 	fieldsets = (
-		('Basic Info',		{'fields': ('login', 'firstName', 'lastName', 'email')}),
-		('Names',			{'fields': ('displayName', 'honorificPrefix', 'middleName', 'honorificSuffix', 'nickName')}),
-		('Contact Info',	{'fields': ('primaryPhone', 'mobilePhone', 'profileUrl', 'secondEmail')}),
-		('Organization',	{'fields': ('organization', 'division', 'department', 'title', 'userType', 'employeeNumber', 'costCenter', 'managerId', 'manager')}),
-		('Addresses',		{'fields': ('streetAddress', 'city', 'state', 'zipCode', 'countryCode', 'postalAddress')}),
-		('International',	{'fields': ('locale', 'preferredLanguage', 'timezone')}),
-		('Permissions',		{'fields': ('is_staff', 'is_superuser', 'is_active')}),
+		('Basic Info', {'fields': ('login', 'firstName', 'lastName', 'email')}),
+		('Names', {
+			'classes'	: ('collapse',),
+			'fields'	: ('displayName', 'honorificPrefix', 'middleName', 'honorificSuffix', 'nickName'),
+			}),
+		('Contact Info', {
+			'classes'	: ('collapse',),
+			'fields'	: ('primaryPhone', 'mobilePhone', 'profileUrl', 'secondEmail'),
+			}),
+		('Organization', {
+			'classes'	: ('collapse',),
+			'fields'	: ('organization', 'division', 'department', 'title', 'userType', 'employeeNumber', 'costCenter', 'managerId', 'manager'),
+			}),
+		('Addresses', {
+			'classes'	: ('collapse',),
+			'fields'	: ('streetAddress', 'city', 'state', 'zipCode', 'countryCode', 'postalAddress'),
+			}),
+		('International', {
+			'classes'	: ('collapse',),
+			'fields'	: ('locale', 'preferredLanguage', 'timezone'),
+			}),
+		('Groups', {
+			'classes'	: ('collapse',),
+			'fields'	: ('groups',),
+			}),
+		('Permissions', {'fields': ('is_staff', 'is_superuser', 'is_active')}),
 	)
 	list_display = ('login', 'firstName', 'lastName', 'email', 'is_staff', 'is_superuser', 'is_active')
 	list_filter = ('is_active', 'userType', 'organization', 'division', 'department', 'title', 'managerId')
