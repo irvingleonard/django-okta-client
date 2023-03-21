@@ -1,0 +1,39 @@
+[build-system]
+requires = ['setuptools', 'wheel', 'simplifiedapp']
+build-backend = 'setuptools.build_meta:__legacy__'
+
+[project]
+name = 'django-okta-client'
+dynamic = ['version', 'description', 'readme']
+requires-python = '>=3.7'
+authors = [
+	{ name = 'Irving Leonard', email = 'irvingleonard@gmail.com'}
+]
+keywords = ['okta', 'saml', 'saml2']
+license = {text = 'BSD 2-Clause "Simplified" License'}
+classifiers = [
+	'Development Status :: 4 - Beta',
+	'Environment :: Web Environment',
+	'Framework :: Django',
+	'Intended Audience :: Developers',
+	'License :: OSI Approved :: BSD License',
+	'Natural Language :: English',
+	'Operating System :: OS Independent',
+	'Programming Language :: Python',
+	'Programming Language :: Python :: 3',
+	'Topic :: Internet :: WWW/HTTP',
+	'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
+	'Topic :: System :: Systems Administration :: Authentication/Directory',
+]
+dependencies = [
+	'django',
+	'pysaml2',
+]
+
+[project.urls]
+homepage = 'https://github.com/irvingleonard/django-okta-client'
+# documentation = 'https://github.com/irvingleonard/django-okta-client'
+repository = 'https://github.com/irvingleonard/django-okta-client.git'
+
+[tool.setuptools.packages.find]
+include = ['okta_client*']
