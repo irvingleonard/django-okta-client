@@ -64,6 +64,23 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 	def __str__(self):
 		return self.login
 	
+	@classmethod
+	def _attributes_from_okta_profile(cls, okta_profile):
+		attributes = {}
+		for field in cls._meta.fields:
+			if hasattr(okta_profile, field.name):
+				okta_attr = getattr(okta_profile, field.name)
+				if (okta_attr is None) or not len(okta_attr):
+					continue
+				if isinstance(field, models.fields.DateTimeField):
+					okta_attr = datetime.datetime.fromisoformat(okta_attr.rstrip('Z'))
+				attributes[field.name] = okta_attr
+		return attributes
+
+	@classmethod
+	def from_okta_profile(cls, okta_profile):
+		return cls(**cls._attributes_from_okta_profile(okta_profile))
+
 	def get_full_name(self):
 		if self.displayName:
 			return self.displayName
@@ -76,6 +93,11 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 			return self.nickName
 		else:
 			return self.firstName
+
+	def update_from_okta_profile(self, okta_profile):
+		for field_name, field_value in self._attributes_from_okta_profile(okta_profile).items():
+			setattr(self, field_name, field_value)
+		return self
 
 
 class OktaUser(AbstractOktaUser):
