@@ -1,16 +1,19 @@
-from django.conf import settings
-from django.contrib.auth import login, logout, get_user_model
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseRedirect, HttpResponseServerError
-from django.shortcuts import render
-from django.urls import reverse
-from django.views.decorators.csrf import csrf_exempt
+#python
 
+import json
 import logging
 
 import saml2
 import saml2.client 
 import saml2.config
+
+from django.conf import settings
+from django.contrib.auth import login, logout, get_user_model
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse, HttpResponseRedirect, HttpResponseServerError, JsonResponse
+from django.shortcuts import render
+from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
 
 from . import apps
 from . import models
@@ -70,6 +73,57 @@ class SPConfig:
 	def next_url(cls, request, django_config = settings):
 		config = cls.OktaConfig(request, django_config)
 		return request.GET.get('next', config.get('DEFAULT_NEXT_URL', '/'))
+
+
+########## ----- Mixins ----- ##########
+
+
+class OktaEventHookMixin:
+	'''Okta Event Hook endpoint
+	Follow Okta's way to do Okta Event Hooks, for your convenience.
+	
+	Your class based view, the one that inherits this mixin, should implement an *okta_"type_of_event"* method for each event type that this view will handle where "type_of_event" will be the event type reported by okta with the dots replaced by underscores. Ex: okta_user_session_start
+	
+	There's also the option to implement a fallback "okta_event" method that will be used if no specific method exists for an event type.
+	
+	All these methods should expect 2 parameters:
+	- request: is the Django request object provided to the view
+	- event is the already parsed event that should be processed in this iteration
+	
+	Ref: https://developer.okta.com/docs/concepts/event-hooks/
+	'''
+	
+	def get(self, request):
+		'''HTTP GET
+		Only used to confirm that it follows Okta's convention.
+		'''
+		
+		return JsonResponse({'verification' : request.headers.get('x-okta-verification-challenge','')})
+	
+	def post(self, request):
+		'''HTTP GET
+		Regular Event Hook handling.
+		'''
+		
+		request_body = json.loads(request.body)
+		not_implemented = False
+		for event in request_body['data']['events']:
+			method_name = 'okta_' + event['eventType'].replace('.', '_')
+			if hasattr(self, method_name):
+				getattr(self, method_name)(request, event)
+			elif hasattr(self, 'okta_event'):
+				getattr(self, 'okta_event')(request, event)
+			else:
+				not_implemented = True
+				LOGGER.warning('Okta event support not implemented: %s', event['eventType'])
+
+		if not_implemented:
+			return HttpResponse(status = 501)
+		else:
+			return HttpResponse(status = 204)
+
+
+########## ----- Views ----- ##########
 
 
 @csrf_exempt
@@ -151,4 +205,3 @@ def logout_(request):
 @login_required
 def index(request):
 	return render(request, 'okta-client/index.html')
-
