@@ -86,9 +86,10 @@ class OktaEventHookMixin:
 	
 	There's also the option to implement a fallback "okta_event" method that will be used if no specific method exists for an event type.
 	
-	All these methods should expect 2 parameters:
+	All these methods should expect 3 parameters:
 	- request: is the Django request object provided to the view
-	- event is the already parsed event that should be processed in this iteration
+	- event: is the already parsed event that should be processed in this iteration
+	- event_targets: is the list of targets in the event as a dictionary keyd by type (an error will be raised if overlapping types). It could be "None" if no targets are present on the event object.
 	
 	Ref: https://developer.okta.com/docs/concepts/event-hooks/
 	'''
@@ -109,10 +110,18 @@ class OktaEventHookMixin:
 		not_implemented = False
 		for event in request_body['data']['events']:
 			method_name = 'okta_' + event['eventType'].replace('.', '_')
+			if ('target' in event) and (event['target'] is not None):
+				event_targets = {}
+				for target in event['target']:
+					if target['type'] in event_targets:
+						raise RuntimeError('Okta event with overlapping targets: {}'.format(event['uuid']))
+					event_targets[target['type']] = {key : value for key, value in target.items() if key not in ['type']}
+			else:
+				event_targets = None
 			if hasattr(self, method_name):
-				getattr(self, method_name)(request, event)
+				getattr(self, method_name)(request, event, event_targets)
 			elif hasattr(self, 'okta_event'):
-				getattr(self, 'okta_event')(request, event)
+				getattr(self, 'okta_event')(request, event, event_targets)
 			else:
 				not_implemented = True
 				LOGGER.warning('Okta event support not implemented: %s', event['eventType'])
