@@ -101,14 +101,15 @@ class OktaEventHookMixin:
 		
 		return JsonResponse({'verification' : request.headers.get('x-okta-verification-challenge','')})
 	
-	def post(self, request):
+	def post(self, request, request_json = None, overrider_method_name = ''):
 		'''HTTP GET
 		Regular Event Hook handling.
 		'''
 		
-		request_body = json.loads(request.body)
+		if request_json is None:
+			request_json = json.loads(request.body)
 		not_implemented = False
-		for event in request_body['data']['events']:
+		for event in request_json['data']['events']:
 			method_name = 'okta_' + event['eventType'].replace('.', '_')
 			if ('target' in event) and (event['target'] is not None):
 				event_targets = {}
@@ -118,7 +119,9 @@ class OktaEventHookMixin:
 					event_targets[target['type']] = {key : value for key, value in target.items() if key not in ['type']}
 			else:
 				event_targets = None
-			if hasattr(self, method_name):
+			if overrider_method_name:
+				getattr(self, overrider_method_name)(request, event, event_targets)
+			elif hasattr(self, method_name):
 				getattr(self, method_name)(request, event, event_targets)
 			elif hasattr(self, 'okta_event'):
 				getattr(self, 'okta_event')(request, event, event_targets)
