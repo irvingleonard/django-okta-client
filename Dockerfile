@@ -19,14 +19,14 @@ ENV PATH /env/bin:$PATH
 
 # Upgrade the virtual environment
 RUN pip install --upgrade pip
-RUN pip install --upgrade setuptools wheel
+RUN pip install --upgrade setuptools wheel build
 
 # Build the app into a wheel and install wheels
 RUN mkdir /source
 COPY /okta_client /source/okta_client
-COPY setup.py /source/
+COPY pyproject.toml setup.py /source/
 WORKDIR /source
-RUN python3 setup.py bdist_wheel
+RUN python3 -m build
 RUN pip install /source/dist/django_okta_client-*.whl
 
 # Deploy the Django site
