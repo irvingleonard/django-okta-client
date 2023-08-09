@@ -37,3 +37,6 @@ repository = 'https://github.com/irvingleonard/django-okta-client.git'
 
 [tool.setuptools.packages.find]
 include = ['okta_client*']
+
+[tool.setuptools.package-data]
+"*" = ["*.html"]
