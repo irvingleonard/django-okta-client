@@ -120,11 +120,11 @@ class OktaEventHookMixin:
 			else:
 				event_targets = None
 			if overrider_method_name:
-				getattr(self, overrider_method_name)(request, event, event_targets)
+				getattr(self, overrider_method_name)(request, request_json, event, event_targets)
 			elif hasattr(self, method_name):
-				getattr(self, method_name)(request, event, event_targets)
+				getattr(self, method_name)(request, request_json, event, event_targets)
 			elif hasattr(self, 'okta_event'):
-				getattr(self, 'okta_event')(request, event, event_targets)
+				getattr(self, 'okta_event')(request, request_json, event, event_targets)
 			else:
 				not_implemented = True
 				LOGGER.warning('Okta event support not implemented: %s', event['eventType'])
