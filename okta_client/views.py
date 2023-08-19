@@ -94,11 +94,13 @@ class OktaEventHookMixin:
 	Ref: https://developer.okta.com/docs/concepts/event-hooks/
 	'''
 	
-	def get(self, request):
+	def get(self, request, *args, **kwargs):
 		'''HTTP GET
 		Only used to confirm that it follows Okta's convention.
 		'''
 		
+		if args or kwargs:
+			LOGGER.warning('OktaEventHookMixin.GET is ignoring: %s | %s', args, kwargs)
 		return JsonResponse({'verification' : request.headers.get('x-okta-verification-challenge','')})
 	
 	def post(self, request, request_json = None, overrider_method_name = ''):
