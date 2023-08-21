@@ -94,6 +94,20 @@ class OktaEventHookMixin:
 	Ref: https://developer.okta.com/docs/concepts/event-hooks/
 	'''
 	
+	def _okta_event_disaptcher(self, request, request_json, event, event_targets):
+		'''Default event dispatcher
+		It looks for a properly named method and calls it with the regular parameters (same as this method's signature)
+		'''
+		
+		method_name = 'okta_' + event['eventType'].replace('.', '_')
+		if hasattr(self, method_name):
+			getattr(self, method_name)(request, request_json, event, event_targets)
+		elif hasattr(self, 'okta_event'):
+			getattr(self, 'okta_event')(request, request_json, event, event_targets)
+		else:
+			LOGGER.warning('Okta event support not implemented: %s', event['eventType'])
+			return HttpResponse(status = 501)
+	
 	def get(self, request, *args, **kwargs):
 		'''HTTP GET
 		Only used to confirm that it follows Okta's convention.
@@ -103,16 +117,15 @@ class OktaEventHookMixin:
 			LOGGER.warning('OktaEventHookMixin.GET is ignoring: %s | %s', args, kwargs)
 		return JsonResponse({'verification' : request.headers.get('x-okta-verification-challenge','')})
 	
-	def post(self, request, request_json = None, overrider_method_name = ''):
+	def post(self, request, request_json = None):
 		'''HTTP GET
 		Regular Event Hook handling.
 		'''
 		
 		if request_json is None:
 			request_json = json.loads(request.body)
-		not_implemented = False
+		results = []
 		for event in request_json['data']['events']:
-			method_name = 'okta_' + event['eventType'].replace('.', '_')
 			if ('target' in event) and (event['target'] is not None):
 				event_targets = {}
 				for target in event['target']:
@@ -121,18 +134,13 @@ class OktaEventHookMixin:
 					event_targets[target['type']] = {key : value for key, value in target.items() if key not in ['type']}
 			else:
 				event_targets = None
-			if overrider_method_name:
-				getattr(self, overrider_method_name)(request, request_json, event, event_targets)
-			elif hasattr(self, method_name):
-				getattr(self, method_name)(request, request_json, event, event_targets)
-			elif hasattr(self, 'okta_event'):
-				getattr(self, 'okta_event')(request, request_json, event, event_targets)
-			else:
-				not_implemented = True
-				LOGGER.warning('Okta event support not implemented: %s', event['eventType'])
-
-		if not_implemented:
-			return HttpResponse(status = 501)
+			result  = self._okta_event_disaptcher(request, request_json, event, event_targets))
+			if result is not None:
+				results.append(result)
+		if len(results) > 1:
+			raise RuntimeError('Too many results for a single Okta hook: {}'.format(results))
+		elif results:
+			return results[0]
 		else:
 			return HttpResponse(status = 204)
 
