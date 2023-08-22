@@ -134,7 +134,7 @@ class OktaEventHookMixin:
 					event_targets[target['type']] = {key : value for key, value in target.items() if key not in ['type']}
 			else:
 				event_targets = None
-			result  = self._okta_event_disaptcher(request, request_json, event, event_targets))
+			result  = self._okta_event_disaptcher(request, request_json, event, event_targets)
 			if result is not None:
 				results.append(result)
 		if len(results) > 1:
