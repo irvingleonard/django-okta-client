@@ -181,7 +181,7 @@ def acs(request):
 
 	user = authenticate(request, login = login_id, **saml_values)
 	if user is None:
-		raise RuntimeError('There was a problem while setting up your local account')
+		raise RuntimeError('Unable to authenticate. Did you add "okta_client.auth_backends.OktaBackend" to AUTHENTICATION_BACKENDS on your settings.py?')
 	
 	LOGGER.info('Logging in "%s"', user)
 	login(request, user)
