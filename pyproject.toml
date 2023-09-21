@@ -26,8 +26,15 @@ classifiers = [
 	'Topic :: System :: Systems Administration :: Authentication/Directory',
 ]
 dependencies = [
+	'asgiref',
 	'django',
 	'pysaml2',
+	'okta',
+]
+
+[project.optional-dependencies]
+dev = [
+	'env-pipes',
 ]
 
 [project.urls]
