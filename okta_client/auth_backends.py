@@ -64,49 +64,57 @@ class OktaBackend(ModelBackend):
 		'''
 
 		try:
-			okta_user = self._query_okta_api('get_user', login)
-		except RuntimeError:
-			LOGGER.error('User not found in Okta: %s', login)
-			return None
+			self._client
+		except Exception:
+			okta_user = None
+		else:
+			try:
+				okta_user = self._query_okta_api('get_user', login)
+			except RuntimeError:
+				LOGGER.error('User not found in Okta: %s', login)
+				return None
 
 		try:
 			user = UserModel.objects.get(pk = login)
 		except UserModel.DoesNotExist:
 			LOGGER.debug('Creating new local user: %s', login)
-			user = UserModel.from_okta_profile(okta_user.profile)
+			user = UserModel(login = login) if okta_user is None else UserModel.from_okta_profile(okta_user.profile)
 		else:
-			LOGGER.debug('Updating existing local user: %s', login)
-			user.update_from_okta_profile(okta_user.profile)
+			if okta_user is not None:
+				LOGGER.debug('Updating existing local user: %s', login)
+				user.update_from_okta_profile(okta_user.profile)
 		if user_details:
 			LOGGER.info('Updating user "%s" with values from the SAML assertion: %s', login, user_details)
 			user.update(**user_details)
 		user.is_active = True
 
-		user_groups = [group.profile.name for group in self._query_okta_api('list_user_groups', okta_user.id)]
+		if okta_user is not None:
+			user_groups = [group.profile.name for group in self._query_okta_api('list_user_groups', okta_user.id)]
 
-		if 'ADMIN_GROUPS' in settings.OKTA_CLIENT:
-			if frozenset(settings.OKTA_CLIENT['ADMIN_GROUPS']) & frozenset(user_groups):
-				LOGGER.debug('Found an admin: %s', login)
-				user.is_staff = True
-				user.is_superuser = True
+			if 'ADMIN_GROUPS' in settings.OKTA_CLIENT:
+				if frozenset(settings.OKTA_CLIENT['ADMIN_GROUPS']) & frozenset(user_groups):
+					LOGGER.debug('Found an admin: %s', login)
+					user.is_staff = True
+					user.is_superuser = True
 
 		user.save()
 
-		LOGGER.debug('Adding user to groups: %s -> %s', login, user_groups)
-		for group_name in user_groups:
-			try:
-				group = Group.objects.get(name = group_name)
-			except Group.DoesNotExist:
-				LOGGER.debug('Creating local group: %s', group_name)
-				group = Group(name = group_name)
-				group.save()
-			group.user_set.add(user)
+		if okta_user is not None:
+			LOGGER.debug('Adding user to groups: %s -> %s', login, user_groups)
+			for group_name in user_groups:
+				try:
+					group = Group.objects.get(name = group_name)
+				except Group.DoesNotExist:
+					LOGGER.debug('Creating local group: %s', group_name)
+					group = Group(name = group_name)
+					group.save()
+				group.user_set.add(user)
 
-		leaving_groups = frozenset([user_group.name for user_group in user.groups.all()]) - frozenset(user_groups)
-		if leaving_groups:
-			LOGGER.debug('Removing user from groups: %s <- %s', login, list(leaving_groups))
-			for removing_from_group in leaving_groups:
-				group = Group.objects.get(name = removing_from_group)
-				group.user_set.remove(user)
+			leaving_groups = frozenset([user_group.name for user_group in user.groups.all()]) - frozenset(user_groups)
+			if leaving_groups:
+				LOGGER.debug('Removing user from groups: %s <- %s', login, list(leaving_groups))
+				for removing_from_group in leaving_groups:
+					group = Group.objects.get(name = removing_from_group)
+					group.user_set.remove(user)
 
 		return user
