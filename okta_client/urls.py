@@ -1,9 +1,8 @@
 from django.urls import path, include
 
-from . import apps
 from . import views
 
-app_name = apps.OktaClientConfig.name
+app_name = 'okta-client'
 
 urlpatterns = [
 	path('saml/', views.acs, name = 'acs'),

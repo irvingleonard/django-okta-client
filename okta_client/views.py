@@ -15,7 +15,6 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
-from . import apps
 from . import models
 
 LOGGER = logging.getLogger(__name__)
@@ -35,7 +34,7 @@ class SPConfig:
 			super().__init__()
 			
 			local_domain_url = okta_settings.get('ASSERTION_DOMAIN_URL', '{}://{}'.format(request.scheme, request.get_host()))	
-			acs_url = ''.join((local_domain_url, reverse('{}:acs'.format(apps.OktaClientConfig.name))))
+			acs_url = ''.join((local_domain_url, reverse('okta-client:acs')))
 			
 			if 'METADATA_LOCAL_FILE_PATH' in okta_settings:
 				self['metadata'] = {'local' : okta_settings['METADATA_LOCAL_FILE_PATH']}
