@@ -8,7 +8,7 @@ import saml2.client
 import saml2.config
 
 from django.conf import settings
-from django.contrib.auth import login, logout, get_user_model
+from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseServerError, JsonResponse
 from django.shortcuts import render
@@ -170,24 +170,21 @@ def acs(request):
 	
 	login_id = authn_response.get_subject().text
 	
-	if False:
-		#Implement API calls and pull user from Okta
-		pass
+	user_identity = authn_response.get_identity()
+	if user_identity is None:
+		LOGGER.error('Malformed SAML response (get_identity failed): %s', authn_response)
+		return HttpResponse(status = 401)
 	else:
-		user_identity = authn_response.get_identity()
-		if user_identity is None:
-			LOGGER.error('Malformed SAML response (get_identity failed): %s', authn_response)
-			return HttpResponse(status = 401)
-		else:
-			LOGGER.debug('Identity correctly extracted: %s', user_identity)
+		LOGGER.debug('Identity correctly extracted: %s', user_identity)
+
+	saml_values = {key : value[0] if isinstance(value, list) and (len(value) == 1) else value for key, value in user_identity.items() if key not in ['login', 'request']}
+
+	user = authenticate(request, login = login_id, **saml_values)
+	if user is None:
+		raise RuntimeError('There was a problem while setting up your local account')
 	
-		defaults = {key : value[0] if isinstance(value, list) and (len(value) == 1) else value for key, value in user_identity.items() if key not in ['login']}
-		defaults['is_active'] = True
-		LOGGER.debug('Updating or creating user "%s" with: %s', login_id, defaults)
-		target_user, created_flag = get_user_model().objects.update_or_create(defaults = defaults, login = login_id)
-	
-	LOGGER.info('Logging in "%s"', target_user)
-	login(request, target_user)
+	LOGGER.info('Logging in "%s"', user)
+	login(request, user)
 	
 	LOGGER.debug('Redirecting after login to "%s"', next_url)
 	return HttpResponseRedirect(next_url)
