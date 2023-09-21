@@ -82,7 +82,7 @@ INSTALLED_APPS += [
 ]
 
 AUTH_USER_MODEL = 'okta_client.OktaUser'
-AUTHENTICATION_BACKENDS = ['okta_client.auth_backends.OktaBackend']
+AUTHENTICATION_BACKENDS = ['okta_client.auth_backends.OktaBackend', 'django.contrib.auth.backends.ModelBackend']
 
 LOGGING = {
 	'version': 1,
