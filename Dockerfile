@@ -1,10 +1,22 @@
 FROM python:3
 
-ARG DJANGO_SUPERUSER_LOGIN
-ARG DJANGO_SUPERUSER_FIRSTNAME
-ARG DJANGO_SUPERUSER_LASTNAME
-ARG DJANGO_SUPERUSER_EMAIL
-ARG DJANGO_SUPERUSER_PASSWORD
+ARG DJANGO_DATABASE_BACKEND
+ARG DJANGO_DATABASE_DB_NAME
+ARG DJANGO_DATABASE_HOST
+ARG DJANGO_DATABASE_PASSWORD
+ARG DJANGO_DATABASE_PORT
+ARG DJANGO_DATABASE_USER_NAME
+
+ARG DJANGO_DATABASE_SSL_CA
+ARG DJANGO_DATABASE_SSL_CERTIFICATE
+ARG DJANGO_DATABASE_SSL_KEY
+
+ARG DJANGO_DEBUG
+ARG DJANGO_LOG_LEVEL
+ARG OKTA_API_TOKEN
+ARG OKTA_DJANGO_ADMIN_GROUPS
+ARG OKTA_SAML_ASSERTION_DOMAIN_URL
+ARG OKTA_SAML_METADATA_AUTO_CONF_URL
 
 RUN apt-get update
 RUN apt-get --assume-yes upgrade
@@ -23,6 +35,8 @@ RUN pip install --upgrade setuptools wheel build
 
 # Build the app into a wheel and install wheels
 RUN mkdir /source
+COPY requirements*.txt /source/
+RUN pip install --requirement /source/requirements.txt
 COPY /okta_client /source/okta_client
 COPY pyproject.toml setup.py /source/
 WORKDIR /source
@@ -31,6 +45,7 @@ RUN pip install /source/dist/django_okta_client-*.whl
 
 # Deploy the Django site
 RUN mkdir /app
+WORKDIR /app
 RUN django-admin startproject container_site /app/
 COPY settings.py /app/container_site/local_settings.py
 COPY urls.py /app/container_site/urls.py
@@ -40,7 +55,7 @@ COPY site_templates /app/container_site/templates
 RUN python3 /app/manage.py migrate --settings=container_site.local_settings
 
 # Create a superuser, for the admin site
-RUN python3 /app/manage.py createsuperuser --no-input --settings=container_site.local_settings
+# RUN python3 /app/manage.py createsuperuser --no-input --settings=container_site.local_settings
 
 # Run the test server to serve the application (not for production).
 ENTRYPOINT python3 /app/manage.py runserver --settings=container_site.local_settings 0.0.0.0:$PORT
