@@ -1,4 +1,5 @@
 import logging
+import urllib.parse
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -23,7 +24,8 @@ class OktaBackend(ModelBackend):
 		'''
 
 		if name == '_client':
-			client_config = {'orgUrl' : settings.OKTA_CLIENT['API_ORG_URL'], 'token' : settings.OKTA_CLIENT['API_TOKEN']}
+			org_url = urllib.parse.urlunsplit(urllib.parse.urlsplit(settings.OKTA_CLIENT['METADATA_AUTO_CONF_URL'])[:2] + ('','',''))
+			client_config = {'orgUrl' : org_url, 'token' : settings.OKTA_CLIENT['API_TOKEN']}
 			if 'SSL_CONTEXT' in settings.OKTA_CLIENT:
 				client_config['sslContext'] = settings.OKTA_CLIENT['SSL_CONTEXT']
 			value = okta.client.Client(client_config)
@@ -90,6 +92,7 @@ class OktaBackend(ModelBackend):
 
 		user.save()
 
+		LOGGER.debug('Adding user to groups: %s -> %s', login, user_groups)
 		for group_name in user_groups:
 			try:
 				group = Group.objects.get(name = group_name)
@@ -97,13 +100,13 @@ class OktaBackend(ModelBackend):
 				LOGGER.debug('Creating local group: %s', group_name)
 				group = Group(name = group_name)
 				group.save()
-			LOGGER.debug('Adding user to group: %s -> %s', login, group_name)
 			group.user_set.add(user)
 
-		current_groups = frozenset([user_group.name for user_group in user.groups.all()])
-		for removing_from_group in current_groups - frozenset(user_groups):
-			LOGGER.debug('Removing user from group: %s <- %s', login, removing_from_group)
-			group = Group.objects.get(name = removing_from_group)
-			group.user_set.remove(user)
+		leaving_groups = frozenset([user_group.name for user_group in user.groups.all()]) - frozenset(user_groups)
+		if leaving_groups:
+			LOGGER.debug('Removing user from groups: %s <- %s', login, list(leaving_groups))
+			for removing_from_group in leaving_groups:
+				group = Group.objects.get(name = removing_from_group)
+				group.user_set.remove(user)
 
 		return user
