@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import RegexValidator
 from django.db import models
@@ -5,6 +7,8 @@ from django.utils import timezone as timezone_utils
 from django.utils.translation import gettext_lazy as _
 
 from .managers import OktaUserManager
+
+LOGGER = logging.getLogger(__name__)
 
 validator_5_to_100 = RegexValidator(regex = '^.{5,100}$', message = '5 <= value length <= 100')
 nullable_5_to_100 = RegexValidator(regex = '(^.{5,100}$)|(ˆ$)', message = '5 <= value length <= 100 (or nothing)')
@@ -93,6 +97,15 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 			return self.nickName
 		else:
 			return self.firstName
+
+	def update(self, **updated_values):
+		local_fields = [field.name for field in self._meta.fields]
+		for key, value in updated_values.items():
+			if key in local_fields:
+				setattr(self, key, value)
+			else:
+				LOGGER.warning('Dropping unknown field "%s" in object: %s', key, type(self))
+		return self
 
 	def update_from_okta_profile(self, okta_profile):
 		for field_name, field_value in self._attributes_from_okta_profile(okta_profile).items():
