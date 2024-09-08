@@ -30,12 +30,12 @@ jobs:
 
       - name: Create Virtual Environment & Upgrade PIP
         run: |
-          python3 -m venv venv --system-site-packages
+          python3 -m venv venv
           ./venv/bin/pip install --upgrade pip
 
       - name: Install Dependencies
         run: |
-          ./venv/bin/pip install --upgrade docstring_parser introspection
+          ./venv/bin/pip install --upgrade asgiref django pysaml2 okta simplifiedapp
 
       - name: Install Test Coverage Python Modules
         run: |
