@@ -65,8 +65,9 @@ class OktaBackend(ModelBackend):
 
 		try:
 			self._client
-		except Exception:
+		except Exception as err:
 			okta_user = None
+			LOGGER.warning('Unable to use the Okta API client: %s', err)
 		else:
 			try:
 				okta_user = self._query_okta_api('get_user', login)
