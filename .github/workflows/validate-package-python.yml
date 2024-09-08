@@ -1,0 +1,120 @@
+# Workflow to validate python packages
+
+name: Validate Python package
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [master]
+
+env:
+  PYTHON_VERSION: 3.12
+  ALL_VALID_TAGS_REGEX: ^v[0-9]+\.[0-9]+\.[0-9]+(\.(dev|post)[0-9]+)?$
+  STATUS_CHECK_NAME: Valid Python package
+
+jobs:
+  validate-python-package:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      actions: write
+      statuses: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Create Virtual Environment & Upgrade PIP
+        run: |
+          python3 -m venv venv --system-site-packages
+          ./venv/bin/pip install --upgrade pip
+
+      - name: Install Dependencies
+        run: |
+          ./venv/bin/pip install --upgrade docstring_parser introspection
+
+      - name: Install Test Coverage Python Modules
+        run: |
+          ./venv/bin/pip install --upgrade coverage
+
+      - name: Get Python Package Version
+        id: get_package_version
+        run: |
+          echo "PACKAGE_VERSION=v"`./venv/bin/python3 -m ${{ vars.PACKAGE_NAME}} --version` >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+      - name: Check if Version is Valid
+        id: check_version
+        run: |
+          if [[ ! ${{ steps.get_package_version.outputs.PACKAGE_VERSION }} =~ ${{env.ALL_VALID_TAGS_REGEX}} ]]; then
+            echo "INVALID_TAG=True" >> $GITHUB_OUTPUT
+            echo "Version found: ${{ steps.get_package_version.outputs.PACKAGE_VERSION }} is not a valid semver version number";
+          else 
+            echo "Version found: ${{ steps.get_package_version.outputs.PACKAGE_VERSION }} is a valid semver version number"
+          fi
+
+      - name: Set Failure Status for Invalid Version
+        if: steps.check_version.outputs.INVALID_TAG != null
+        uses: myrotvorets/set-commit-status-action@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: "failure"
+          context: ${{ env.STATUS_CHECK_NAME}}
+          description: "Invalid Version: ${{ steps.get_package_version.outputs.PACKAGE_VERSION }}"
+
+      - name: Exit if Version is Invalid
+        if: steps.check_version.outputs.INVALID_TAG != null
+        run: exit 1
+
+      - name: Get Release for Version (Tag)
+        if: steps.get_package_version.outputs.PACKAGE_VERSION
+        id: get_release
+        uses: cardinalby/git-get-release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tag: ${{ steps.get_package_version.outputs.PACKAGE_VERSION }}
+          doNotFailIfNotFound: true
+
+      - name: Set Failure Status for Release Already Found
+        if: steps.get_release.outputs.id != null
+        uses: myrotvorets/set-commit-status-action@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: "failure"
+          context: ${{ env.STATUS_CHECK_NAME }}
+          description: "Release already created for ${{ steps.get_package_version.outputs.PACKAGE_VERSION }}"
+
+      - name: Exit if Release Already Found
+        if: steps.get_release.outputs.id != null
+        run: exit 1
+
+#      - name: Run Tests
+#        id: tests
+#        run: ./venv/bin/coverage run -m unittest discover -v -s ${{ vars.TESTS_FOLDER || 'tests' }} && echo "TESTS_RESULT=passing" >> "$GITHUB_OUTPUT"
+#        continue-on-error: true
+
+#      - name: Set Failure Status for Tests
+#        if: steps.tests.outputs.TESTS_RESULT != 'passing'
+#        uses: myrotvorets/set-commit-status-action@master
+#        with:
+#          token: ${{ secrets.GITHUB_TOKEN }}
+#          status: "failure"
+#          description: "Tests failing: ${{steps.tests.outputs.FAILED_TESTS}}"
+#          context: ${{ env.STATUS_CHECK_NAME }}
+#
+#      - name: Exit if Tests Failed
+#        if: steps.tests.outputs.TESTS_RESULT != 'passing'
+#        run: exit 1
+
+      - name: Create success status
+        uses: myrotvorets/set-commit-status-action@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: "success"
+          context: ${{ env.STATUS_CHECK_NAME }}
+          sha: ${{steps.coverage_badge.outputs.badge_commit_sha}}
