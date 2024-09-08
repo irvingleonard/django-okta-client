@@ -1,0 +1,122 @@
+# This workflow builds and uploads python artifacts
+
+name: Publish Production Package
+on:
+  push:
+    branches:
+      - stable
+
+env:
+  PYTHON_VERSION: 3.12
+  TAG_REGEX: ^v[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+$
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+    environment: Production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Create Virtual Environment & Upgrade PIP
+        run: |
+          python3 -m venv venv
+          ./venv/bin/pip install --upgrade pip
+
+      - name: Install Dependencies
+        run: |
+          ./venv/bin/pip install --upgrade asgiref django pysaml2 okta simplifiedapp
+
+      - name: Get Python Package Version
+        id: get_package_version
+        run: |
+          echo "PACKAGE_VERSION=v"`./venv/bin/python3 -m ${{ vars.PACKAGE_NAME}} --version` >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+      - name: Check if Tag is Valid
+        id: check-tag
+        run: |
+          if [[ ! ${{ steps.get_package_version.outputs.PACKAGE_VERSION }} =~ ${{env.TAG_REGEX}} ]]; then
+            echo "Version found: ${{ steps.get_package_version.outputs.PACKAGE_VERSION }} is not a valid semver number for this environment"
+            else 
+            echo "Version found: ${{ steps.get_package_version.outputs.PACKAGE_VERSION }} is a valid semver number for this environment"
+            echo "VALID_VERSION=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Tag
+        id: create-tag
+        if: steps.check-tag.outputs.VALID_VERSION == true
+        continue-on-error: true
+        env:
+          TAG: ${{ steps.get_package_version.outputs.PACKAGE_VERSION  }}
+        run: |
+          git tag ${{ env.TAG }}
+          git push origin ${{ env.TAG }}
+
+      - name: Get Release for Tag
+        if: steps.check-tag.outputs.VALID_VERSION == true
+        id: get_release
+        uses: cardinalby/git-get-release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tag: ${{steps.get_package_version.outputs.PACKAGE_VERSION}}
+          doNotFailIfNotFound: true
+
+    outputs:
+      valid_version: ${{ steps.check-tag.outputs.VALID_VERSION }}
+      tag: ${{ steps.get_package_version.outputs.PACKAGE_VERSION }}
+      release_found: ${{ steps.get_release.outputs.id }}
+
+  deploy:
+    needs: create-tag
+    if: needs.create-tag.outputs.release_found == null && needs.create-tag.outputs.valid_version == 'true'
+    permissions:
+      contents: write
+      id-token: write
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Create Virtual Environment & Upgrade PIP
+        run: |
+          python3 -m venv venv
+          ./venv/bin/pip install --upgrade pip
+
+      - name: Install Build Modules
+        run: |
+          ./venv/bin/pip install --upgrade build
+
+      - name: Install Dependencies
+        run: |
+          ./venv/bin/pip install --upgrade asgiref django pysaml2 okta simplifiedapp
+
+      - name: Build Package
+        run: |
+          ./venv/bin/python3 -m build
+
+      - name: Create Github Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{needs.create-tag.outputs.tag}}
+          files: dist/*
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
