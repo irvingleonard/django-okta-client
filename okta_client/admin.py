@@ -1,12 +1,17 @@
-from django.contrib import admin
+#python
+"""
+
+"""
+
+from django.contrib.admin import ModelAdmin, site as admin_site
 
 from .models import OktaUser
 
 
-class OktaUserAdmin(admin.ModelAdmin):
-	'''User admin
+class OktaUserAdmin(ModelAdmin):
+	"""User admin
 	Customized user admin for Okta users.
-	'''
+	"""
 	
 	fieldsets = (
 		('Basic Info', {'fields': ('login', 'firstName', 'lastName', 'email')}),
@@ -42,6 +47,9 @@ class OktaUserAdmin(admin.ModelAdmin):
 	search_fields = ('login', 'firstName', 'lastName', 'email')
 	
 	def save_model(self, request, obj, form, change):
+		"""
+		
+		"""
 		
 		if change:
 			return super().save_model(request, obj, form, change)
@@ -49,4 +57,4 @@ class OktaUserAdmin(admin.ModelAdmin):
 			return type(obj).objects.create_user(**form.cleaned_data)
 
 
-admin.site.register(OktaUser, OktaUserAdmin)
+admin_site.register(OktaUser, OktaUserAdmin)

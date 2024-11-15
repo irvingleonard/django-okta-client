@@ -1,9 +1,8 @@
 #!python
-'''Configuration module for standalone django-okta-client
+"""Configuration module for standalone django-okta-client
 Configuration parameters for a test deployment of django-okta-client.
-'''
+"""
 
-import os
 import atexit
 import logging
 import os
