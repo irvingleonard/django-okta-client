@@ -99,12 +99,12 @@ class OktaAPIClient:
 		Some computation that is left pending until is needed
 		"""
 
-		if name == 'api_client':
-			client_config = {'orgUrl': self.orgUrl} | self.api_credentials
+		if name == 'okta_api_client':
+			client_config = {'orgUrl': self.okta_orgUrl} | self.okta_api_credentials
 			if 'SSL_CONTEXT' in settings.OKTA_CLIENT:
 				client_config['sslContext'] = settings.OKTA_CLIENT['SSL_CONTEXT']
 			value = OktaClient(client_config)
-		elif name == 'api_credentials':
+		elif name == 'okta_api_credentials':
 			if ('API_CLIENT_ID' in settings.OKTA_CLIENT) and ('API_PRIVATE_KEY' in settings.OKTA_CLIENT):
 				value = {
 					'authorizationMode'	: 'PrivateKey',
@@ -116,7 +116,7 @@ class OktaAPIClient:
 				value = {'token': settings.OKTA_CLIENT['API_TOKEN']}
 			else:
 				raise RuntimeError('Missing API token for Okta client')
-		elif name == 'orgUrl':
+		elif name == 'okta_orgUrl':
 			if 'METADATA_AUTO_CONF_URL' in settings.OKTA_CLIENT:
 				value = urlunsplit(urlsplit(settings.OKTA_CLIENT['METADATA_AUTO_CONF_URL'])[:2] + ('', '', ''))
 			else:
@@ -126,7 +126,7 @@ class OktaAPIClient:
 		self.__setattr__(name, value)
 		return value
 
-	def api_request(self, method_name, *args, **kwargs):
+	def okta_api_request(self, method_name, *args, **kwargs):
 		"""
 
 		"""
