@@ -5,11 +5,14 @@
 
 from json import loads as json_loads
 from logging import getLogger
+from urllib.parse import urlsplit, urlunsplit
 
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 
+from asgiref.sync import async_to_sync
+from okta.client import Client as OktaClient
 from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT
 from saml2.config import SPConfig as SPConfig_
 
@@ -84,6 +87,69 @@ class SPConfig:
 		
 		config = cls.OktaConfig(request, django_config)
 		return request.GET.get('next', config.get('DEFAULT_NEXT_URL', '/'))
+
+
+class OktaAPIClient:
+	"""
+
+	"""
+
+	def __getattr__(self, name):
+		"""Lazy instantiation
+		Some computation that is left pending until is needed
+		"""
+
+		if name == 'api_client':
+			client_config = {'orgUrl': self.orgUrl} | self.api_credentials
+			if 'SSL_CONTEXT' in settings.OKTA_CLIENT:
+				client_config['sslContext'] = settings.OKTA_CLIENT['SSL_CONTEXT']
+			value = OktaClient(client_config)
+		elif name == 'api_credentials':
+			if ('API_CLIENT_ID' in settings.OKTA_CLIENT) and ('API_PRIVATE_KEY' in settings.OKTA_CLIENT):
+				value = {
+					'authorizationMode'	: 'PrivateKey',
+					'clientId'			: settings.OKTA_CLIENT['API_CLIENT_ID'],
+					'privateKey'		: settings.OKTA_CLIENT['API_PRIVATE_KEY'],
+					'scopes'			: settings.OKTA_CLIENT.get('API_SCOPES', None),
+				}
+			elif 'API_TOKEN' in settings.OKTA_CLIENT:
+				value = {'token': settings.OKTA_CLIENT['API_TOKEN']}
+			else:
+				raise RuntimeError('Missing API token for Okta client')
+		elif name == 'orgUrl':
+			if 'METADATA_AUTO_CONF_URL' in settings.OKTA_CLIENT:
+				value = urlunsplit(urlsplit(settings.OKTA_CLIENT['METADATA_AUTO_CONF_URL'])[:2] + ('', '', ''))
+			else:
+				raise RuntimeError('Missing orgUrl for Okta client')
+		else:
+			return getattr(super(), name)
+		self.__setattr__(name, value)
+		return value
+
+	def api_request(self, method_name, *args, **kwargs):
+		"""
+
+		"""
+
+		result = async_to_sync(getattr(self.api_client, method_name), )(*args, **kwargs)
+
+		if len(result) == 3:
+			result, response, err = result
+		elif len(result) == 2:
+			response, err = result
+		else:
+			raise RuntimeError('Unknown result: {}'.format(result))
+
+		if err is not None:
+			raise RuntimeError(err)
+
+		while response.has_next():
+			partial, err = async_to_sync(response.next)()
+			if err is not None:
+				raise RuntimeError(err)
+			result.extend(partial)
+
+		return result
 
 
 class OktaEventHookMixin:
