@@ -25,9 +25,3 @@ OKTA_CLIENT = {
 
 ```
 The `settings.py` file included in the root of the project can be used as a reference of suggested settings.
-
-## Local deployment
-
-You can run a local instance of the Django app, which won't support SAML authentication (unless you're on linux or another OS with the `xmlsec1` binary available), by running the provided script `deploy_fresh_test_site.sh` and following the instructions that it will give you. This solution would allow you to iterate really quick, by using Django's builtin reloader.
-
-There's a way to leverage [Docker](https://www.docker.com/) to run the app, in which case SAML authentication will be definitely supported. You can accomplish it by running `./venv/bin/python ./start_local_container.py path/to/your/secret/json`; where the JSON file will contain the value for the required settings. Such app would have to be configured with `SSO URL=http://localhost:8080/accounts/saml`. This solution would take some time to get anything up and running and you'll need to run `stop_local_container.sh` before trying to `./start_local_container.py` again.
