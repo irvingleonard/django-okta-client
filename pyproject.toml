@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
 	'asgiref',
 	'django',
+	'djangorestframework',
 	'pysaml2',
 	'okta',
 ]
@@ -35,8 +36,17 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
 	'devautotools',
-	'djangorestframework',
 	'env-pipes',
+]
+production=[
+	'devautotools',
+	'gevent',
+	'greenlet',
+	'gunicorn[gevent]',
+	'psycogreen',
+	'psycopg-binary',
+	'zope.event',
+	'zope.interface',
 ]
 
 [project.urls]
