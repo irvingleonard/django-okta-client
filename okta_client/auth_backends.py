@@ -4,65 +4,24 @@
 """
 
 from logging import getLogger
-from urllib.parse import urlsplit, urlunsplit
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth.models import Group
 
-from asgiref.sync import async_to_sync
-from okta.client import Client as OktaClient
+from rest_framework.authentication import TokenAuthentication as DjangoRESTTokenAuthentication
+
+from .mixins import OktaAPIClient
 
 LOGGER = getLogger(__name__)
 UserModel = get_user_model()
 
 
-class OktaBackend(ModelBackend):
+class OktaBackend(OktaAPIClient, ModelBackend):
 	"""Okta auth backend
 	Include Okta related specifics to the authentication process.
 	"""
-
-	def __getattr__(self, name):
-		"""Lazy instantiation
-		Some computation that is left pending until is needed
-		"""
-
-		if name == '_client':
-			org_url = urlunsplit(urlsplit(settings.OKTA_CLIENT['METADATA_AUTO_CONF_URL'])[:2] + ('','',''))
-			client_config = {'orgUrl': org_url, 'token': settings.OKTA_CLIENT['API_TOKEN']}
-			if 'SSL_CONTEXT' in settings.OKTA_CLIENT:
-				client_config['sslContext'] = settings.OKTA_CLIENT['SSL_CONTEXT']
-			value = OktaClient(client_config)
-		else:
-			return getattr(super(), name)
-		self.__setattr__(name, value)
-		return value
-
-	def _query_okta_api(self, method_name, *args, **kwargs):
-		"""
-		
-		"""
-
-		result = async_to_sync(getattr(self._client, method_name),)(*args, **kwargs)
-
-		if len(result) == 3:
-			result, response, err = result
-		elif len(result) == 2:
-			response, err = result
-		else:
-			raise RuntimeError('Unknown result: {}'.format(result))
-
-		if err is not None:
-			raise RuntimeError(err)
-
-		while response.has_next():
-			partial, err = async_to_sync(response.next)()
-			if err is not None:
-				raise RuntimeError(err)
-			result.extend(partial)
-
-		return result
 
 	def authenticate(self, request, login, **user_details):
 		"""Noop check
@@ -70,13 +29,13 @@ class OktaBackend(ModelBackend):
 		"""
 
 		try:
-			self._client
+			self.okta_api_client
 		except Exception as err:
 			okta_user = None
 			LOGGER.warning('Unable to use the Okta API client: %s', err)
 		else:
 			try:
-				okta_user = self._query_okta_api('get_user', login)
+				okta_user = self.okta_api_request('get_user', login)
 			except RuntimeError:
 				LOGGER.error('User not found in Okta: %s', login)
 				return None
@@ -97,13 +56,18 @@ class OktaBackend(ModelBackend):
 		
 		user_groups = []
 		if okta_user is not None:
-			user_groups = [group.profile.name for group in self._query_okta_api('list_user_groups', okta_user.id)]
+			user_groups = [group.profile.name for group in self.okta_api_request('list_user_groups', okta_user.id)]
 
-			if 'ADMIN_GROUPS' in settings.OKTA_CLIENT:
-				if frozenset(settings.OKTA_CLIENT['ADMIN_GROUPS']) & frozenset(user_groups):
-					LOGGER.debug('Found an admin: %s', login)
+			if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT:
+				if frozenset(settings.OKTA_CLIENT['SUPER_USER_GROUPS']) & frozenset(user_groups):
+					LOGGER.debug('Found a super user: %s', login)
 					user.is_staff = True
 					user.is_superuser = True
+
+			if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT:
+				if frozenset(settings.OKTA_CLIENT['STAFF_GROUPS']) & frozenset(user_groups):
+					LOGGER.debug('Found a staff user: %s', login)
+					user.is_staff = True
 
 		user.save()
 
@@ -126,3 +90,11 @@ class OktaBackend(ModelBackend):
 					group.user_set.remove(user)
 
 		return user
+
+
+class DjangoRESTBearerTokenAuthentication(DjangoRESTTokenAuthentication):
+	"""Token authentication for REST
+	Like the builtin rest_framework.authentication.TokenAuthentication method but using the "Bearer" word instead of the default "Token" (it simplifies the compatibility with Postman)
+	"""
+
+	keyword = 'Bearer'

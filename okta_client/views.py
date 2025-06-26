@@ -3,93 +3,112 @@
 
 """
 
+from json import JSONDecodeError
 from logging import getLogger
 
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseRedirect, HttpResponseServerError
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
+from django.views import View
 
-from saml2 import BINDING_HTTP_POST
-from saml2.client import Saml2Client
+from rest_framework.permissions import IsAuthenticated as RESTIsAuthenticated
+from rest_framework.views import APIView
 
-from .mixins import SPConfig
+from .exceptions import SAMLAssertionError
+from .mixins import LoginLogoutMixin, OktaEventHookMixin
 
 LOGGER = getLogger(__name__)
 
-@csrf_exempt
-def acs(request):
-	
-	next_url = request.session.get('next_url', SPConfig.next_url(request))
-	saml_client = Saml2Client(config=SPConfig(request))
-	
-	response = request.POST.get('SAMLResponse', None)
-	if response:
-		LOGGER.debug('ACS received SAML response: %s', response)
-	else:
-		LOGGER.error('No POST request to ACS')
-		return HttpResponse(status=407)
 
-	authn_response = saml_client.parse_authn_request_response(response, BINDING_HTTP_POST)
-	if authn_response is None:
-		LOGGER.error('Unable to parse SAML response: %s', response)
-		return HttpResponse(status=400)
-	else:
-		LOGGER.debug('Parsed SAML response: %s', authn_response)
-	
-	login_id = authn_response.get_subject().text
-	
-	user_identity = authn_response.get_identity()
-	if user_identity is None:
-		LOGGER.error('Malformed SAML response (get_identity failed): %s', authn_response)
-		return HttpResponse(status=401)
-	else:
-		LOGGER.debug('Identity correctly extracted: %s', user_identity)
+class LoginView(LoginLogoutMixin, View):
+	"""
 
-	saml_values = {key : value[0] if isinstance(value, list) and (len(value) == 1) else value for key, value in user_identity.items() if key not in ['login', 'request']}
+	"""
 
-	user = authenticate(request, login=login_id, **saml_values)
-	if user is None:
-		raise RuntimeError('Unable to authenticate. Did you add "okta_client.auth_backends.OktaBackend" to AUTHENTICATION_BACKENDS on your settings.py?')
-	
-	LOGGER.info('Logging in "%s"', user)
-	login(request, user)
-	
-	LOGGER.debug('Redirecting after login to "%s"', next_url)
-	return HttpResponseRedirect(next_url)
+	def get(self, request):
+		"""
 
-def login_view(request):
-	
-	LOGGER.debug('Logging in: %s', request)
-	
-	request.session['next_url'] = SPConfig.next_url(request)
-	LOGGER.debug('Saved "next_url" into session: %s', request.session['next_url'])
-	
-	saml_client = Saml2Client(config=SPConfig(request))
-	LOGGER.debug('Preparing authentication with: %s', saml_client)
-	session_id, request_info = saml_client.prepare_for_authenticate()
-	LOGGER.debug('Session id %s includes: %s', session_id, request_info)
+		"""
 
-	for key, value in request_info['headers']:
-		if key == 'Location':
-			LOGGER.debug('Found "Location" header. Redirecting to "%s"', value)
-			return HttpResponseRedirect(value)
-	
-	LOGGER.error('The "Location" header was not found')
-	return HttpResponseServerError()
+		try:
+			next_url = self.login_user(request)
+		except RuntimeError:
+			return HttpResponseBadRequest()
+		else:
+			return HttpResponseRedirect(next_url)
 
-def logout_view(request):
-	if request.user.is_authenticated:
-		LOGGER.info('Logging out user: %s', request.user)
-		logout(request)
-	else:
-		LOGGER.debug('No authenticated user. Ignoring logout request')
-		
-	next_url = request.session.get('next_url', SPConfig.next_url(request))
-	LOGGER.debug('Redirecting after logout: %s', next_url)
-	return HttpResponseRedirect(next_url)
+	def post(self, request):
+		"""
 
-@login_required
-def index(request):
-	return render(request, 'okta-client/index.html')
+		"""
+
+		try:
+			next_url = self.saml_assertion(request)
+		except SAMLAssertionError:
+			return HttpResponseBadRequest()
+		else:
+			return HttpResponseRedirect(next_url)
+
+
+class LogoutView(LoginLogoutMixin, LoginRequiredMixin, View):
+	"""
+
+	"""
+
+	def get(self, request):
+		"""
+
+		"""
+
+		next_url = self.logout_user(request)
+		return HttpResponseRedirect(next_url)
+
+	def post(self, request):
+		"""
+
+		"""
+
+		next_url = self.logout_user(request)
+		return HttpResponseRedirect(next_url)
+
+
+class OktaEventHooks(OktaEventHookMixin, APIView):
+	"""
+
+	"""
+
+	permission_classes = [RESTIsAuthenticated]
+
+	def get(self, request):
+		"""HTTP GET
+		Only used to confirm that it follows Okta's convention.
+		"""
+
+		return JsonResponse(self.authenticate_endpoint(request))
+
+	def post(self, request):
+		"""HTTP GET
+		Regular Event Hook handling.
+		"""
+
+		try:
+			self.handle_event(request)
+		except (JSONDecodeError, UnicodeDecodeError):
+			return HttpResponseBadRequest()
+		else:
+			return HttpResponse(status=204)
+
+
+######## Demo View ########
+
+class IndexView(LoginRequiredMixin, View):
+	"""
+
+	"""
+
+	def get(self, request):
+		"""
+
+		"""
+
+		return render(request, 'okta-client/index.html')
