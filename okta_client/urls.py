@@ -4,7 +4,7 @@
 """
 
 from django.conf import settings
-from django.urls import path
+from django.urls import path, include
 from django.views.decorators.csrf import csrf_exempt
 
 from . import views
