@@ -1,6 +1,6 @@
 #python
 """
-
+URL patterns for the Okta client application.
 """
 
 from django.conf import settings
@@ -15,7 +15,7 @@ if hasattr(settings, 'OKTA_CLIENT'):
 	urlpatterns = [
 		path('accounts/login/', views.LoginView.as_view(), name='login'),
 		path('accounts/logout/', views.LogoutView.as_view(), name='logout'),
-		path('accounts/saml/', csrf_exempt(views.LoginView.as_view()), name='acs'),
+		path('accounts/saml/', csrf_exempt(views.ACSView.as_view()), name='acs'),
 		path('api/okta_event_hooks/', views.OktaEventHooks.as_view(), name='event_hooks'),
 	]
 else:

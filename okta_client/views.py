@@ -1,6 +1,6 @@
 #python
 """
-
+Django Okta Client Views
 """
 
 from json import JSONDecodeError
@@ -20,9 +20,27 @@ from .mixins import LoginLogoutMixin, OktaEventHookMixin
 LOGGER = getLogger(__name__)
 
 
-class LoginView(LoginLogoutMixin, View):
+class ACSView(LoginLogoutMixin, View):
 	"""
 
+	"""
+
+	def post(self, request):
+		"""
+
+		"""
+
+		try:
+			next_url = self.saml_assertion(request)
+		except SAMLAssertionError:
+			return HttpResponseBadRequest()
+		else:
+			return HttpResponseRedirect(next_url)
+
+
+class LoginView(LoginLogoutMixin, View):
+	"""
+	Handles the login process for Okta.
 	"""
 
 	def get(self, request):
@@ -33,18 +51,6 @@ class LoginView(LoginLogoutMixin, View):
 		try:
 			next_url = self.login_user(request)
 		except RuntimeError:
-			return HttpResponseBadRequest()
-		else:
-			return HttpResponseRedirect(next_url)
-
-	def post(self, request):
-		"""
-
-		"""
-
-		try:
-			next_url = self.saml_assertion(request)
-		except SAMLAssertionError:
 			return HttpResponseBadRequest()
 		else:
 			return HttpResponseRedirect(next_url)
