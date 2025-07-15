@@ -1,6 +1,6 @@
 #python
 """
-
+This module defines Django signals related to Okta events.
 """
 
 from logging import getLogger

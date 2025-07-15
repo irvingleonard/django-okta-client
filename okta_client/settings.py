@@ -1,6 +1,6 @@
 #python
 """
-
+Okta Client Django settings.
 """
 
 from base64 import b64decode
