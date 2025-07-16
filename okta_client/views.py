@@ -22,12 +22,16 @@ LOGGER = getLogger(__name__)
 
 class ACSView(LoginLogoutMixin, View):
 	"""
-
+	Handles the Assertion Consumer Service (ACS) for SAML responses from Okta.
 	"""
 
 	def post(self, request):
-		"""
+		"""POST verb
+		Handles the POST request for the ACS endpoint, processing the SAML assertion.
 
+		:param request: the Django request
+		:type request: object
+		:returns object: the Django response
 		"""
 
 		try:
@@ -44,8 +48,12 @@ class LoginView(LoginLogoutMixin, View):
 	"""
 
 	def get(self, request):
-		"""
+		"""GET verb
+		Handles the GET request for the login endpoint.
 
+		:param request: the Django request
+		:type request: object
+		:returns object: the Django response
 		"""
 
 		try:
@@ -58,20 +66,28 @@ class LoginView(LoginLogoutMixin, View):
 
 class LogoutView(LoginLogoutMixin, LoginRequiredMixin, View):
 	"""
-
+	Handles the logout process for Okta.
 	"""
 
 	def get(self, request):
-		"""
+		"""GET verb
+		Handles the GET request for the logout endpoint.
 
+		:param request: the Django request
+		:type request: object
+		:returns object: the Django response
 		"""
 
 		next_url = self.logout_user(request)
 		return HttpResponseRedirect(next_url)
 
 	def post(self, request):
-		"""
+		"""POST verb
+		Handles the POST request for the logout endpoint.
 
+		:param request: the Django request
+		:type request: object
+		:returns object: the Django response
 		"""
 
 		next_url = self.logout_user(request)
@@ -80,7 +96,7 @@ class LogoutView(LoginLogoutMixin, LoginRequiredMixin, View):
 
 class OktaEventHooks(OktaEventHookMixin, APIView):
 	"""
-
+	Handles Okta event hooks.
 	"""
 
 	permission_classes = [RESTIsAuthenticated]
@@ -88,6 +104,10 @@ class OktaEventHooks(OktaEventHookMixin, APIView):
 	def get(self, request):
 		"""HTTP GET
 		Only used to confirm that it follows Okta's convention.
+
+		:param request: the Django request
+		:type request: object
+		:returns object: the Django response
 		"""
 
 		return JsonResponse(self.authenticate_endpoint(request))
@@ -95,6 +115,10 @@ class OktaEventHooks(OktaEventHookMixin, APIView):
 	def post(self, request):
 		"""HTTP GET
 		Regular Event Hook handling.
+
+		:param request: the Django request
+		:type request: object
+		:returns object: the Django response
 		"""
 
 		try:
@@ -109,12 +133,16 @@ class OktaEventHooks(OktaEventHookMixin, APIView):
 
 class IndexView(LoginRequiredMixin, View):
 	"""
-
+	A simple view to demonstrate a protected page after successful login.
 	"""
 
 	def get(self, request):
-		"""
+		"""GET verb
+		Handles the GET request for the index page.
 
+		:param request: the Django request
+		:type request: object
+		:returns object: the Django response
 		"""
 
 		return render(request, 'okta-client/index.html')

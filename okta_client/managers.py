@@ -1,6 +1,6 @@
 #python
-"""
-
+"""Okta user manager module
+This module defines the custom user manager for the Okta user model.
 """
 
 from django.contrib.auth.base_user import BaseUserManager

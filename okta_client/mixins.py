@@ -1,6 +1,6 @@
 #python
 """
-
+Mixins for Django Okta Client.
 """
 
 from json import loads as json_loads
@@ -25,10 +25,19 @@ LOGGER = getLogger(__name__)
 
 class LoginLogoutMixin:
 	"""
-
+	Handles user login and logout processes, including SAML assertion parsing.
 	"""
 
 	def login_user(self, request):
+		"""Login user
+		Initiates the SAML authentication process by preparing an authentication request and returning the URL to which the user should be redirected for authentication.
+
+		:param request: the Django request
+		:type request: object
+		:return: The "Location" header
+		:rtype: str
+		:raises: RuntimeError if there's no "Location" header in the request
+		"""
 
 		LOGGER.debug('Logging in: %s', request)
 
@@ -48,7 +57,15 @@ class LoginLogoutMixin:
 		raise RuntimeError('The "Location" header was not found')
 
 	def logout_user(self, request):
+		"""Logs out the current user.
+		If the user is authenticated, they are logged out. Otherwise, a RuntimeError is raised. After logout, the user is redirected to the 'next_url' stored in the session or the default next URL.
 
+		:param request: The Django request object.
+		:type request: object
+		:return: The URL to redirect to after logout.
+		:rtype: str
+		:raises RuntimeError: If the user is not authenticated.
+		"""
 		if request.user.is_authenticated:
 			LOGGER.info('Logging out user: %s', request.user)
 			logout(request)
@@ -60,8 +77,15 @@ class LoginLogoutMixin:
 		return next_url
 
 	def saml_assertion(self, request):
-		"""
+		"""Handles the SAML assertion process.
+		This method is responsible for parsing the SAML response received from the Identity Provider (IdP), authenticating the user based on the SAML assertion, and logging them into the Django application.
 
+		:param request: The Django request object containing the SAML response.
+		:type request: object
+		:return: The URL to redirect to after successful authentication.
+		:rtype: str
+		:raises SAMLAssertionError: If there is no SAML response, the response cannot be parsed, or the user identity cannot be extracted.
+		:raises RuntimeError: If authentication fails or the OktaBackend is not configured.
 		"""
 
 		next_url = request.session.get('next_url', SPConfig.next_url(request))
@@ -102,12 +126,16 @@ class LoginLogoutMixin:
 
 class OktaAPIClient:
 	"""
-
+	Handles interactions with the Okta API, including lazy instantiation of the Okta client and making API requests.
 	"""
 
 	def __getattr__(self, name):
 		"""Lazy instantiation
-		Some computation that is left pending until is needed
+		It provides a mechanism for lazy instantiation of the Okta API client, its credentials, and the Okta organization URL.
+
+		:param name: The name of the attribute being accessed.
+		:type name: str
+		:returns: the attribute value
 		"""
 
 		if name == 'okta_api_client':
@@ -138,8 +166,14 @@ class OktaAPIClient:
 		return value
 
 	def okta_api_request(self, method_name, *args, **kwargs):
-		"""
+		"""Okta API request
+		Makes a request to the Okta API using the configured Okta client.
 
+		:param method_name: The name of the method to call on the Okta client (e.g., 'list_users').
+		:type method_name: str
+		:param args: Positional arguments to pass to the Okta client method.
+		:param kwargs: Keyword arguments to pass to the Okta client method.
+		:return: The result of the Okta API call.
 		"""
 
 		result = async_to_sync(getattr(self.okta_api_client, method_name), )(*args, **kwargs)
@@ -165,19 +199,28 @@ class OktaAPIClient:
 
 class OktaEventHookMixin:
 	"""
-
+	Handles Okta event hooks, including verification and processing of incoming events.
 	"""
 
 	def authenticate_endpoint(self, request):
-		"""
+		"""Authenticates the Okta event hook endpoint.
+		This method is called when Okta attempts to verify the event hook endpoint. It extracts the 'x-okta-verification-challenge' header from the request and returns it as part of a dictionary. Okta expects this challenge to be returned to confirm the endpoint's authenticity.
 
+		:param request: The Django request object containing the verification challenge.
+		:type request: object
+		:return: A dictionary containing the 'verification' challenge string.
+		:rtype: dict
 		"""
 
 		return {'verification': request.headers.get('x-okta-verification-challenge', '')}
 
 	def handle_event(self, request):
-		"""
+		"""Handles incoming Okta event hook notifications.
+		This method parses the JSON payload from the request body, which represents an Okta event. It then dispatches this event to registered signal handlers via the `okta_event_hook` signal. It logs the outcome of each handler's execution, noting errors, unexpected return values, or successful completion. Okta does not expect a response body for event hooks, so any return values from handlers are logged as warnings and discarded.
 
+		:param request: The Django request object containing the Okta event hook payload in its body.
+		:type request: object
+		:return: None
 		"""
 
 		event_hook = json_loads(request.body)
@@ -194,17 +237,21 @@ class OktaEventHookMixin:
 
 class SPConfig:
 	"""
-
+	Manages the Service Provider (SP) configuration for SAML authentication.
 	"""
 
 	class OktaConfig(dict):
 		"""
-
+		Represents the Okta configuration for the Service Provider (SP).
 		"""
 
 		def __init__(self, request, django_settings=settings):
-			"""
+			"""Initializes the OktaConfig with request and Django settings.
+			This constructor sets up the SAML Service Provider (SP) configuration based on the provided Django settings and the current request. It determines the Assertion Consumer Service (ACS) URL, configures metadata (local or remote), and defines various SAML SP service parameters like endpoints, signing requirements, and name ID format.
 
+			:param request: The Django request object.
+			:type request: object
+			:param django_settings: The Django settings object, defaults to `settings`.
 			"""
 
 			try:
@@ -243,8 +290,12 @@ class SPConfig:
 				self['service']['sp']['name_id_format'] = okta_settings['NAME_ID_FORMAT']
 
 	def __new__(cls, request, django_config=settings):
-		"""
+		"""Creates a new SPConfig instance, loading the Okta configuration.
+		This method acts as a factory for `SPConfig_` (from `saml2.config`), initializing it with the Okta-specific SAML configuration.
 
+		:param request: The Django request object.
+		:param django_config: The Django settings object, defaults to `settings`.
+		:return: An initialized `saml2.config.SPConfig` object.
 		"""
 
 		sp_config = SPConfig_()
@@ -254,8 +305,15 @@ class SPConfig:
 
 	@classmethod
 	def next_url(cls, request, django_config=settings):
-		"""
+		"""Determines the next URL for redirection after a successful login or logout.
+		It first checks for a 'next' parameter in the request's GET query. If not found, it falls back to the 'DEFAULT_NEXT_URL' defined in the Okta client settings. If neither is specified, it defaults to the root URL ('/').
 
+		:param request: The Django request object.
+		:type request: object
+		:param django_config: The Django settings object, defaults to `settings`.
+		:type django_config: object
+		:return: The URL to redirect to.
+		:rtype: str
 		"""
 
 		config = cls.OktaConfig(request, django_config)

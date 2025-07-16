@@ -27,6 +27,14 @@ EXPECTED_VALUES_FROM_ENV = {
 }
 
 def common_settings(settings_globals):
+	"""Common Django settings
+	Applies common Okta client settings to a Django settings dictionary.
+
+	:param settings_globals: A dictionary representing the Django settings.
+	:type settings_globals: dict
+	:return: The modified Django settings dictionary.
+	:rtype: dict
+	"""
 
 	django_settings = settings_globals.copy()
 

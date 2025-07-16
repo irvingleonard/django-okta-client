@@ -1,6 +1,6 @@
 #python
 """
-
+Okta authentication backend for Django.
 """
 
 from logging import getLogger

@@ -1,6 +1,6 @@
 #python
 """
-
+Okta Client Admin
 """
 
 from django.contrib.admin import ModelAdmin, site as admin_site
@@ -48,7 +48,7 @@ class OktaUserAdmin(ModelAdmin):
 	
 	def save_model(self, request, obj, form, change):
 		"""
-		
+		Save model
 		"""
 		
 		if change:
