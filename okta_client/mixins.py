@@ -155,11 +155,6 @@ class OktaAPIClient:
 				value = {'token': settings.OKTA_CLIENT['API_TOKEN']}
 			else:
 				raise RuntimeError('Missing auth settings for Okta client')
-		elif name == 'okta_orgUrl':
-			if 'METADATA_AUTO_CONF_URL' in settings.OKTA_CLIENT:
-				value = urlunsplit(urlsplit(settings.OKTA_CLIENT['METADATA_AUTO_CONF_URL'])[:2] + ('', '', ''))
-			else:
-				raise RuntimeError('Missing orgUrl for Okta client')
 		else:
 			return getattr(super(), name)
 		self.__setattr__(name, value)
