@@ -12,7 +12,7 @@ from django.contrib.auth.models import Group
 
 from rest_framework.authentication import TokenAuthentication as DjangoRESTTokenAuthentication
 
-from .mixins import OktaAPIClient
+from .api_client import OktaAPIClient
 
 LOGGER = getLogger(__name__)
 UserModel = get_user_model()

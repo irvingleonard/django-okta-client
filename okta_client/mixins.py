@@ -5,20 +5,18 @@ Mixins for Django Okta Client.
 
 from json import loads as json_loads
 from logging import getLogger
-from urllib.parse import urlsplit, urlunsplit
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.urls import reverse
 
-from asgiref.sync import async_to_sync
-from okta.client import Client as OktaClient
 from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT
 from saml2.client import Saml2Client
 from saml2.config import SPConfig as SPConfig_
 
 from .exceptions import SAMLAssertionError
 from .signals import okta_event_hook
+from .signals import events as okta_events_signals
 
 LOGGER = getLogger(__name__)
 
@@ -124,78 +122,14 @@ class LoginLogoutMixin:
 		return next_url
 
 
-class OktaAPIClient:
-	"""
-	Handles interactions with the Okta API, including lazy instantiation of the Okta client and making API requests.
-	"""
-
-	def __getattr__(self, name):
-		"""Lazy instantiation
-		It provides a mechanism for lazy instantiation of the Okta API client, its credentials, and the Okta organization URL.
-
-		:param name: The name of the attribute being accessed.
-		:type name: str
-		:returns: the attribute value
-		"""
-
-		if name == 'okta_api_client':
-			client_config = {'orgUrl': settings.OKTA_CLIENT['ORG_URL']} | self.okta_api_credentials
-			if 'SSL_CONTEXT' in settings.OKTA_CLIENT:
-				client_config['sslContext'] = settings.OKTA_CLIENT['SSL_CONTEXT']
-			value = OktaClient(client_config)
-		elif name == 'okta_api_credentials':
-			if ('API_CLIENT_ID' in settings.OKTA_CLIENT) and ('API_PRIVATE_KEY' in settings.OKTA_CLIENT):
-				value = {
-					'authorizationMode'	: 'PrivateKey',
-					'clientId'			: settings.OKTA_CLIENT['API_CLIENT_ID'],
-					'privateKey'		: settings.OKTA_CLIENT['API_PRIVATE_KEY'],
-					'scopes'			: settings.OKTA_CLIENT.get('API_SCOPES', None),
-				}
-			elif 'API_TOKEN' in settings.OKTA_CLIENT:
-				value = {'token': settings.OKTA_CLIENT['API_TOKEN']}
-			else:
-				raise RuntimeError('Missing auth settings for Okta client')
-		else:
-			return getattr(super(), name)
-		self.__setattr__(name, value)
-		return value
-
-	def okta_api_request(self, method_name, *args, **kwargs):
-		"""Okta API request
-		Makes a request to the Okta API using the configured Okta client.
-
-		:param method_name: The name of the method to call on the Okta client (e.g., 'list_users').
-		:type method_name: str
-		:param args: Positional arguments to pass to the Okta client method.
-		:param kwargs: Keyword arguments to pass to the Okta client method.
-		:return: The result of the Okta API call.
-		"""
-
-		result = async_to_sync(getattr(self.okta_api_client, method_name), )(*args, **kwargs)
-
-		if len(result) == 3:
-			result, response, err = result
-		elif len(result) == 2:
-			response, err = result
-		else:
-			raise RuntimeError('Unknown result: {}'.format(result))
-
-		if err is not None:
-			raise RuntimeError(err)
-
-		while response.has_next():
-			partial, err = async_to_sync(response.next)()
-			if err is not None:
-				raise RuntimeError(err)
-			result.extend(partial)
-
-		return result
-
-
 class OktaEventHookMixin:
 	"""
 	Handles Okta event hooks, including verification and processing of incoming events.
 	"""
+
+	LOCAL_EVENT_HANDLERS = {
+		'user.lifecycle.create' : lambda: None,
+	}
 
 	def authenticate_endpoint(self, request):
 		"""Authenticates the Okta event hook endpoint.
@@ -209,9 +143,9 @@ class OktaEventHookMixin:
 
 		return {'verification': request.headers.get('x-okta-verification-challenge', '')}
 
-	def handle_event(self, request):
+	def handle_events(self, request):
 		"""Handles incoming Okta event hook notifications.
-		This method parses the JSON payload from the request body, which represents an Okta event. It then dispatches this event to registered signal handlers via the `okta_event_hook` signal. It logs the outcome of each handler's execution, noting errors, unexpected return values, or successful completion. Okta does not expect a response body for event hooks, so any return values from handlers are logged as warnings and discarded.
+		This method parses the JSON payload from the request body, which represents an Okta event hook. It then dispatches this event to registered signal handlers via the `okta_event_hook` signal. It logs the outcome of each handler's execution, noting errors, unexpected return values, or successful completion. Okta does not expect a response body for event hooks, so any return values from handlers are logged as warnings and discarded.
 
 		:param request: The Django request object containing the Okta event hook payload in its body.
 		:type request: object
@@ -220,6 +154,24 @@ class OktaEventHookMixin:
 
 		event_hook = json_loads(request.body)
 		results = okta_event_hook.send_robust(self.__class__, event_hook=event_hook)
+
+		if ('data' not in event_hook) or ('events' not in event_hook['data']):
+			LOGGER.warning('The submitted Okta hook contains no events: %s', event_hook)
+		else:
+			for event in event_hook['data']['events']:
+				signal_name = event['eventType'].replace('.', '_')
+				if hasattr(okta_events_signals, signal_name):
+					results += getattr(okta_events_signals, signal_name).send_robust(self.__class__, event=event)
+				else:
+					LOGGER.warning('Support not implemented for Okta event: %s', event['eventType'])
+
+				if event['eventType'] in self.LOCAL_EVENT_HANDLERS:
+					local_handler = self.LOCAL_EVENT_HANDLERS[event['eventType']]
+					try:
+						local_handler(event)
+					except Exception:
+						LOGGER.exception('Local processing of event "%s" failed by: %s', event['eventType'], local_handler)
+
 		for handler, result in results:
 			handler = '.'.join((handler.__module__, handler.__name__))
 			if isinstance(result, Exception):
