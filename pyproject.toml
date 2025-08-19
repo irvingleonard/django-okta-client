@@ -36,10 +36,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
 	'devautotools',
-	'env-pipes',
+	'simplifiedapp==0.7.4',
 ]
 production=[
-	'devautotools',
 	'gevent',
 	'greenlet',
 	'gunicorn[gevent]',
