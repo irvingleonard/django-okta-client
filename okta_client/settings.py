@@ -91,7 +91,7 @@ def common_settings(settings_globals, parent_callables=None):
 			if 'OKTA_CLIENT_PRIVATE_KEY' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
 				okta_client['API_PRIVATE_KEY'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_PRIVATE_KEY']
 			else:
-				okta_client['API_PRIVATE_KEY'] = b64decode(django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_PRIVATE_KEY'])
+				okta_client['API_PRIVATE_KEY'] = b64decode(django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_PRIVATE_KEY_BASE64'])
 		else:
 			warn('Not enough configuration provided for Okta OAuth', RuntimeWarning)
 
