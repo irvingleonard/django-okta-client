@@ -6,6 +6,7 @@ Django Okta Client Views
 from json import JSONDecodeError
 from logging import getLogger
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
@@ -122,7 +123,7 @@ class OktaEventHooks(OktaEventHookMixin, APIView):
 		"""
 
 		try:
-			self.handle_event(request)
+			self.handle_events(request)
 		except (JSONDecodeError, UnicodeDecodeError):
 			return HttpResponseBadRequest()
 		else:
@@ -144,5 +145,9 @@ class IndexView(LoginRequiredMixin, View):
 		:type request: object
 		:returns object: the Django response
 		"""
+
+		user_model = get_user_model()
+		LOGGER.warning('Got: %s', user_model.remote_objects.all())
+		# LOGGER.warning('Got user: %s', user_model.remote_objects.get())
 
 		return render(request, 'okta-client/index.html')
