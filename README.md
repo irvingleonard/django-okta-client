@@ -1,11 +1,62 @@
 # django-okta-client
  
-This project aims to integrate your Django site with Okta. You'll have to install it and add the app in your site's `settings.py`.
+This project aims to integrate your Django site with Okta.
+
+TLDR; using the [`Normalized Django settings system`](https://github.com/irvingleonard/devautotools?tab=readme-ov-file#normalized-django-settings-system) you'll leverage the `common_settings`function to simplify the configuration.
+At least make your site's `settings.py` look like this:
+```
+from okta_client.settings import common_settings as okta_client_common_settings
+
+global_state = globals()
+global_state |= okta_client_common_settings(globals())
+```
+You should probably include the basic stuff too by doing instead:
+```
+from devautotools import django_common_settings
+from okta_client.settings import common_settings as okta_client_common_settings
+
+global_state = globals()
+global_state |= okta_client_common_settings(globals(), parent_callables=[django_common_settings])
+```
+Your site's `urls.py` should start with:
+```
+urlpatterns += [
+    path('', include('okta_client.urls')),
+]
+```
+With any of that you'll have "everything" configured. You'll still have to provide values via environment which would enable the different things. Such environmental values would be:
+```
+EXPECTED_VALUES_FROM_ENV = {
+	'OKTA_CLIENT_AUTH_SETTINGS_FROM_ENV': {
+		'OKTA_CLIENT_PRIVATE_KEY',
+		'OKTA_CLIENT_PRIVATE_KEY_BASE64',
+		'OKTA_CLIENT_TOKEN',
+	},
+	'OKTA_CLIENT_OAUTH_SETTINGS_FROM_ENV': {
+		'OKTA_CLIENT_ID',
+		'OKTA_CLIENT_SCOPES',
+	},
+	'OKTA_CLIENT_SETTINGS_FROM_ENV' : {
+		'OKTA_CLIENT_LOCAL_PATH',
+		'OKTA_CLIENT_ORG_URL',
+		'OKTA_DJANGO_STAFF_USER_GROUPS',
+		'OKTA_DJANGO_SUPER_USER_GROUPS',
+		'OKTA_SAML_ASSERTION_DOMAIN_URL',
+		'OKTA_SAML_METADATA_AUTO_CONF_URL',
+	},
+}
+```
+The explanation of how each of those work is contained in the rest of this document. 
+
+## Adding the app
+
+You'll have to install it and add the app in your site's `settings.py`.
 ```
 INSTALLED_APPS += [
 	'okta_client',
 ]
 ```
+(_`common_settings` adds this unconditionally_)
 
 ## User Authentication
 
@@ -17,6 +68,8 @@ A custom user model that follows the [default Okta profile](https://developer.ok
 ```
 AUTH_USER_MODEL = 'okta_client.OktaUser'
 ```
+(_`common_settings` adds this unconditionally_)
+
 This model uses the `login` attribute as the user id. It also requires the users to have: `email`, `firstName`, and `lastName`. You should enable the [API client](#api-client) or configure [SAML Assertion Attributes](#saml-assertion-attributes) to satisfy this requirement.
 
 ### Authentication backends
@@ -25,6 +78,8 @@ A federated authentication backend is provided to replace the [builtin Django ba
 ```
 AUTHENTICATION_BACKENDS = ['okta_client.auth_backends.OktaBackend']
 ```
+(_`common_settings` adds this if there's any "Okta client" configured_)
+
 You could add `django.contrib.auth.backends.ModelBackend` to the list (always after `OktaBackend`) if you want to keep supporting local accounts (with passwords). Keep in mind that `OktaBackend` is a federated authentication method, so it won't actually perform any local "authentication".
 
 ### SAML Federated Authentication
@@ -35,6 +90,8 @@ urlpatterns += [
     path('', include('okta_client.urls')),
 ]
 ```
+(_`common_settings` can change the location of the app's views via `OKTA_CLIENT_LOCAL_PATH` which defaults to `okta_client`_)
+
 This should be added as early as possible (near the top of the list in `urlpatterns`) to avoid other apps taking over the authentication process. This will take over the regular login process in Django so going forward it won't be possible to login with username and password following the regular way (there's still a way, with the [Noop configuration](#noop-configuration)).
 
 After this you should register your app in Okta, with the URL pattern `https://yoursite.example/okta_client/acs/`. After that's done, take note of the `metadata autoconfiguration` URL found on the "Sign On" tab of your app in the Okta admin interface. Edit your `settings.py` and populate your `OKTA_CLIENT` setting:
@@ -44,6 +101,8 @@ OKTA_CLIENT = {
 	'ASSERTION_DOMAIN_URL'		: 'https//yoursite.example',
 }
 ```
+(_`common_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL` and `OKTA_SAML_ASSERTION_DOMAIN_URL` and "declare an `Okta client configured`"_)
+
 The `ASSERTION_DOMAIN_URL` is only required for HTTPS sites, it's not needed for unencrypted HTTP.
 
 #### SAML Assertion Attributes
@@ -112,6 +171,8 @@ OKTA_CLIENT = {
 	'API_SCOPES'        : 'comma,separated,list,of,scopes',
 }
 ```
+(_`common_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL`/`OKTA_CLIENT_ORG_URL`, `OKTA_CLIENT_ID`, `OKTA_CLIENT_PRIVATE_KEY`/`OKTA_CLIENT_PRIVATE_KEY_BASE64`, and `OKTA_CLIENT_SCOPES` and "declare an `Okta client configured`"_)
+
 The scopes would be from [this list](https://developer.okta.com/docs/api/oauth2/).
 
 #### Using an API token
@@ -123,6 +184,7 @@ OKTA_CLIENT = {
 	'API_TOKEN' : 'super_secret_super_random_super_long_string',
 }
 ```
+(_`common_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL`/`OKTA_CLIENT_ORG_URL` and `OKTA_CLIENT_TOKEN` and "declare an `Okta client configured`"_)
 
 ### User details via API
 
@@ -137,26 +199,13 @@ OKTA_CLIENT = {
 	'STAFF_USER_GROUPS' : ['PowerUsers'],
 }
 ```
+(_`common_settings` will pull these values from `OKTA_DJANGO_SUPER_USER_GROUPS` and `OKTA_DJANGO_STAFF_USER_GROUPS` as comma separated lists_)
+
 Keep in mind that neither of this is about access: the access to the app is controlled in the Okta side, your Django app effectively transferred the authentication to Okta (assuming SAML is configured). With these you can control the associated attributes/flags which in turn affect the permissions in the Django Admin site. You could also create custom permissions based on this attributes, of course. 
 
 ## Devautotools
 
 This app leverages the [devautotools](https://pypi.org/project/devautotools/) module.
-
-### Simplified configuration
-
-If you sniff around the `settings.py` file in the root of the project you'll realize that it's really short, even though it exposes a lot of Okta related settings. The way of doing so is based on the `common_settings` concept.
-
-The idea is to provide a simplified way to configure the system that should cover most of the use cases around. It starts by "registering" possible configuration settings to look for as environment variables. Then it parses those and produce the related settings, all that in a programmatic way.
-
-The `devautoools.django_common_settings` function covers some Django basic settings: debug, log_level, storage, database values. This app provides the list of possible settings in `okta_client.settings.EXPECTED_VALUES_FROM_ENV` and a function to parse them in `okta_client.settings.common_settings`. That is why a simple settings file (like the `settings.py` in the root of the project) would look like:
-```
-global_state = globals()
-global_state |= django_common_settings(globals())
-
-global_state |= common_settings(globals())
-```
-With that is enough to fully configure your site with the Okta stuff. The `common_settings` function will take care of updating your `INSTALLED_APPS`, `AUTH_USER_MODEL`, `AUTHENTICATION_BACKENDS`, and the `OKTA_CLIENT` entries according to the input provided.
 
 ### Local deployments
 
