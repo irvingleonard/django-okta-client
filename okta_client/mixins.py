@@ -128,7 +128,7 @@ class OktaEventHookMixin:
 	"""
 
 	LOCAL_EVENT_HANDLERS = {
-		'user.lifecycle.create' : lambda: None,
+		'user.lifecycle.create' : lambda sender, **kwargs: None,
 	}
 
 	def authenticate_endpoint(self, request):
@@ -153,7 +153,9 @@ class OktaEventHookMixin:
 		"""
 
 		event_hook = json_loads(request.body)
-		results = okta_event_hook.send_robust(self.__class__, event_hook=event_hook)
+
+		signals_ = {okta_event_hook : {'event_hook': event_hook}}
+		results = []
 
 		if ('data' not in event_hook) or ('events' not in event_hook['data']):
 			LOGGER.warning('The submitted Okta hook contains no events: %s', event_hook)
@@ -161,25 +163,30 @@ class OktaEventHookMixin:
 			for event in event_hook['data']['events']:
 				signal_name = event['eventType'].replace('.', '_')
 				if hasattr(okta_events_signals, signal_name):
-					results += getattr(okta_events_signals, signal_name).send_robust(self.__class__, event=event)
+					signals_[getattr(okta_events_signals, signal_name)] = {'event': event}
 				else:
 					LOGGER.warning('Support not implemented for Okta event: %s', event['eventType'])
 
 				if event['eventType'] in self.LOCAL_EVENT_HANDLERS:
 					local_handler = self.LOCAL_EVENT_HANDLERS[event['eventType']]
 					try:
-						local_handler(event)
+						local_result = local_handler(event)
 					except Exception:
-						LOGGER.exception('Local processing of event "%s" failed by: %s', event['eventType'], local_handler)
+						results.append((local_handler, Exception))
+					else:
+						results.append((local_handler, local_result))
+
+		for signal_, params in signals_.items():
+			results += signal_.send_robust(self.__class__, **params)
 
 		for handler, result in results:
 			handler = '.'.join((handler.__module__, handler.__name__))
 			if isinstance(result, Exception):
-				LOGGER.error('The "%s" experienced an error while handling an Okta event hook: %s', handler, result)
+				LOGGER.error('Handler "%s" experienced an error while processing an Okta event hook: %s', handler, result)
 			elif result:
-				LOGGER.warning('The "%s" returned a value while handling an Okta event hook. Okta does not expect an answer, discarding: %s', handler, result)
+				LOGGER.warning('Handler "%s" returned a value while processing an Okta event hook. Okta does not expect an answer, discarding: %s', handler, result)
 			else:
-				LOGGER.debug('The "%s" completed successfully the handling of an Okta event hook.', handler)
+				LOGGER.debug('Handler "%s" completed successfully the processing of an Okta event hook.', handler)
 
 
 class SPConfig:
