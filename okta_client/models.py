@@ -12,7 +12,7 @@ from django.db.models import BooleanField, CharField, DateTimeField, EmailField,
 from django.utils import timezone as timezone_utils
 from django.utils.translation import gettext_lazy as _
 
-from .managers import OktaUserManager, OktaUserRemoteManager
+from .managers import OktaUserManager
 
 LOGGER = getLogger(__name__)
 
@@ -61,7 +61,6 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 	date_joined = DateTimeField(verbose_name=_("date joined"), default=timezone_utils.now)
 	
 	objects = OktaUserManager()
-	remote_objects = OktaUserRemoteManager()
 	
 	EMAIL_FIELD = 'email'
 	USERNAME_FIELD = 'login'
