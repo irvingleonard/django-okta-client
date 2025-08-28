@@ -1,0 +1,5 @@
+## Local deployment
+
+You can run a local instance of the Django app, which won't support SAML authentication (unless you're on linux or another OS with the `xmlsec1` binary available), by installing `devautotools` in a "personal" virtual environment (can't be `venv` on the root of the project, assuming `~/venv`) and running `~/venv/bin/python -m devautotools deploy_local_django_site --extra_paths_to_link templates --superuser_password MySuperSecretPas$$word --dev_from_pypi conf/file-with-your-settings.json`. This solution would allow you to iterate really quick, by using Django's builtin reloader.
+
+There's a way to leverage [Docker](https://www.docker.com/) to run the app, in which case SAML authentication will be definitely supported. You can accomplish it by running `~/venv/bin/python -m devautotools  path/to/your/secret/json`; where the JSON file will contain the value for the required settings. Such app would have to be configured with `SSO URL=http://localhost:8080/accounts/saml`. This solution would take some time to get anything up and running and you'll need to run `stop_local_container.sh` before trying to `./start_local_container.py` again.

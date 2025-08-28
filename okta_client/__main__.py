@@ -1,6 +1,6 @@
 #!python
 """
-
+Entry point for the `okta_client` package.
 """
 
 from simplifiedapp import main

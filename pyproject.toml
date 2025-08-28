@@ -28,13 +28,24 @@ classifiers = [
 dependencies = [
 	'asgiref',
 	'django',
+	'djangorestframework',
 	'pysaml2',
 	'okta',
 ]
 
 [project.optional-dependencies]
 dev = [
-	'env-pipes',
+	'devautotools',
+	'simplifiedapp',
+]
+production=[
+	'gevent',
+	'greenlet',
+	'gunicorn[gevent]',
+	'psycogreen',
+	'psycopg-binary',
+	'zope.event',
+	'zope.interface',
 ]
 
 [project.urls]
@@ -46,4 +57,4 @@ repository = 'https://github.com/irvingleonard/django-okta-client.git'
 include = ['okta_client*']
 
 [tool.setuptools.package-data]
-"*" = ["*.html"]
+"*" = ["*.html", "*.py-template"]

@@ -1,10 +1,15 @@
 #python
+"""Okta user manager module
+This module defines the custom user manager for the Okta user model.
 """
 
-"""
+from logging import getLogger
 
 from django.contrib.auth.base_user import BaseUserManager
 
+from .api_client import OktaAPIClient
+
+LOGGER = getLogger(__name__)
 
 class OktaUserManager(BaseUserManager):
 	"""Okta user manager

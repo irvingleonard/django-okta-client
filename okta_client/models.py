@@ -1,6 +1,6 @@
 #python
-"""
-
+"""Okta Client Models
+This module defines the Django models for integrating with Okta user profiles.
 """
 
 from datetime import datetime as DateTime
@@ -72,10 +72,23 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		abstract = True
 	
 	def __str__(self):
+		"""String representation of the Okta user.
+
+		:return: The login (username) of the Okta user.
+		:rtype: str
+		"""
+
 		return self.login
 	
 	@classmethod
 	def _attributes_from_okta_profile(cls, okta_profile):
+		"""Extracts relevant attributes from an Okta profile object.
+		This method iterates through the model's fields and attempts to retrieve corresponding values from the provided `okta_profile` object. It handles `DateTimeField` conversion and filters out empty or None values.
+
+		:return: Attributes extracted from the Okta profile, suitable for model instantiation or update.
+		:rtype: dict
+		"""
+
 		attributes = {}
 		for field in cls._meta.fields:
 			if hasattr(okta_profile, field.name):
@@ -89,9 +102,25 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 
 	@classmethod
 	def from_okta_profile(cls, okta_profile):
+		"""Creates an instance of the Okta user model from an Okta profile object.
+		This method uses `_attributes_from_okta_profile` to extract relevant data and then instantiates the model.
+
+		:param okta_profile: An object representing the Okta user profile.
+		:type okta_profile: object
+		:return: An instance of the Okta user model.
+		:rtype: cls
+		"""
+
 		return cls(**cls._attributes_from_okta_profile(okta_profile))
 
 	def get_full_name(self):
+		"""Returns the user's full name.
+		This method prioritizes the `displayName` field. If `displayName` is not set, it constructs the full name by concatenating `honorificPrefix`, `firstName`, `middleName`, `lastName`, and `honorificSuffix`, including only non-empty components.
+
+		:return: The user's full name
+		:rtype: str
+		"""
+
 		if self.displayName:
 			return self.displayName
 		else:
@@ -99,12 +128,27 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 			return ' '.join([getattr(self, component) for component in components if getattr(self, component)])
 
 	def get_short_name(self):
+		"""Returns the user's short name.
+		This method prioritizes the `nickName` field. If `nickName` is not set, it returns the `firstName`.
+
+		:return: The user's short name
+		:rtype: str
+		"""
+
 		if self.nickName:
 			return self.nickName
 		else:
 			return self.firstName
 
 	def update(self, **updated_values):
+		"""Updates user attributes from a dictionary of values.
+		This method iterates through the provided keyword arguments and updates the corresponding fields on the user model instance. It only updates fields that exist on the model; any unknown fields will be ignored and a warning will be logged.
+
+		:param updated_values: Keyword arguments where keys are model field names and values are the new values for those fields.
+		:return: The updated user instance.
+		:rtype: self
+		"""
+		
 		local_fields = [field.name for field in self._meta.fields]
 		for key, value in updated_values.items():
 			if key in local_fields:
@@ -114,6 +158,15 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		return self
 
 	def update_from_okta_profile(self, okta_profile):
+		"""Updates the user's attributes from an Okta profile object.
+		This method extracts relevant attributes from the provided `okta_profile` using `_attributes_from_okta_profile` and then updates the corresponding fields on the current user instance.
+
+		:param okta_profile: An object representing the Okta user profile.
+		:type okta_profile: object
+		:return: The updated user instance.
+		:rtype: self
+		"""
+
 		for field_name, field_value in self._attributes_from_okta_profile(okta_profile).items():
 			setattr(self, field_name, field_value)
 		return self
