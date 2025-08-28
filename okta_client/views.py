@@ -146,4 +146,8 @@ class IndexView(LoginRequiredMixin, View):
 		:returns object: the Django response
 		"""
 
+		user_model = get_user_model()
+		LOGGER.warning('Got: %s', user_model.remote_objects.all())
+		# LOGGER.warning('Got user: %s', user_model.remote_objects.get())
+
 		return render(request, 'okta-client/index.html')

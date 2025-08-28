@@ -58,3 +58,17 @@ class OktaUserManager(BaseUserManager):
 		user.save()
 		
 		return user
+
+
+class OktaUserRemoteManager(BaseUserManager):
+	"""Okta user remote manager
+	Custom user manager to work with the Okta user model acting on the Okta directory via the API client.
+	"""
+
+	_api_client = OktaAPIClient()
+
+	def get(self, login):
+		return self._api_client('get_user', login)
+
+	def get_queryset(self):
+		return [self.model.from_okta_profile(user.profile) for user in self._api_client('list_users')]

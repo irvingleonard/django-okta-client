@@ -128,6 +128,7 @@ class OktaEventHookMixin:
 	"""
 
 	LOCAL_EVENT_HANDLERS = {
+		'user.lifecycle.create' : lambda sender, **kwargs: None,
 	}
 
 	def authenticate_endpoint(self, request):
