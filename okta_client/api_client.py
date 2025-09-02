@@ -5,6 +5,7 @@ Here are some utility pieces.
 from logging import getLogger
 
 from django.conf import settings
+from django.core.cache import cache
 
 from asgiref.sync import async_to_sync
 from okta.client import Client as OktaClient
@@ -15,6 +16,8 @@ class OktaAPIClient:
 	"""
 	Handles interactions with the Okta API, including lazy instantiation of the Okta client and making API requests.
 	"""
+
+	CACHE_PREFIX = 'okta_client_api_client'
 
 	def __getattr__(self, name):
 		"""Lazy instantiation
