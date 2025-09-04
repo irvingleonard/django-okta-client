@@ -13,7 +13,7 @@ SITE_DIR = Path(__file__).parent
 
 settings_module_names = (
     'devautotools',
-    'okta_client.local_settings',
+    'okta_client.settings',
 )
 global_state = globals()
 global_state |= django_normalized_settings(*settings_module_names, django_settings=globals())
