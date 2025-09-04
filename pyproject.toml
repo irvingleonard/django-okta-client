@@ -27,6 +27,7 @@ classifiers = [
 ]
 dependencies = [
 	'asgiref',
+    'devautotools',
 	'django',
 	'djangorestframework',
 	'pysaml2',
@@ -35,7 +36,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-	'devautotools',
 	'simplifiedapp',
 ]
 production=[

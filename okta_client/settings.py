@@ -7,8 +7,6 @@ from base64 import b64decode
 from urllib.parse import urlsplit, urlunsplit
 from warnings import warn
 
-from devautotools import django_settings_env_capture, setting_is_true
-
 DEFAULT_LOCAL_PATH = 'okta_client'
 
 EXPECTED_VALUES_FROM_ENV = {
@@ -31,39 +29,14 @@ EXPECTED_VALUES_FROM_ENV = {
 	},
 }
 
-def common_settings(settings_globals, parent_callables=None):
+def normalized_settings(**django_settings):
 	"""Common values for Django
 	Applies common Okta client settings to a Django settings dictionary.
-	It's usually added as:
 
-	global_state = globals()
-	global_state |= common_settings(globals())
-
-	:param settings_globals: the caller's "globals"
-	:param parent_callables: an optional list of parent "common_settings" callables
-	:type parent_callables: [callable]|None
+	:param django_settings: the current globals() in Django's site
+	:type django_settings: Any
 	:return: new content for "globals"
 	"""
-
-	django_settings = settings_globals.copy()
-
-	if 'EXPECTED_VALUES_FROM_ENV' not in django_settings:
-		django_settings['EXPECTED_VALUES_FROM_ENV'] = {}
-	django_settings['EXPECTED_VALUES_FROM_ENV'] |= EXPECTED_VALUES_FROM_ENV
-
-	if parent_callables is None:
-		if 'ENVIRONMENTAL_SETTINGS' not in django_settings:
-			django_settings['ENVIRONMENTAL_SETTINGS'] = {}
-		django_settings['ENVIRONMENTAL_SETTINGS'] |= django_settings_env_capture(**EXPECTED_VALUES_FROM_ENV)
-		django_settings['ENVIRONMENTAL_SETTINGS_KEYS'] = frozenset(django_settings['ENVIRONMENTAL_SETTINGS'].keys())
-	elif parent_callables:
-		parent_common_settings = parent_callables.pop(0)
-		django_settings = parent_common_settings(django_settings, parent_callables=parent_callables)
-	else:
-		if 'ENVIRONMENTAL_SETTINGS' not in django_settings:
-			django_settings['ENVIRONMENTAL_SETTINGS'] = {}
-		django_settings['ENVIRONMENTAL_SETTINGS'] |= django_settings_env_capture(**django_settings['EXPECTED_VALUES_FROM_ENV'])
-		django_settings['ENVIRONMENTAL_SETTINGS_KEYS'] = frozenset(django_settings['ENVIRONMENTAL_SETTINGS'].keys())
 
 	if 'okta_client' not in django_settings['INSTALLED_APPS']:
 		django_settings['INSTALLED_APPS'].append('okta_client')
