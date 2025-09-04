@@ -18,7 +18,7 @@ LOGGER = getLogger(__name__)
 UserModel = get_user_model()
 
 
-class OktaBackend(OktaAPIClient, ModelBackend):
+class OktaBackend(ModelBackend):
 	"""Okta auth backend
 	Include Okta related specifics to the authentication process.
 	"""
@@ -28,14 +28,16 @@ class OktaBackend(OktaAPIClient, ModelBackend):
 		Retrieve the user details using the Okta API, check for admin access, and update group membership (creating groups if needed)
 		"""
 
+		_api_client = OktaAPIClient()
+
 		try:
-			self.okta_api_client
+			self._api_client.okta_api_client
 		except Exception as err:
 			okta_user = None
 			LOGGER.warning('Unable to use the Okta API client: %s', err)
 		else:
 			try:
-				okta_user = self.okta_api_request('get_user', login)
+				okta_user = self._api_client('get_user', login)
 			except RuntimeError:
 				LOGGER.error('User not found in Okta: %s', login)
 				return None
@@ -56,7 +58,7 @@ class OktaBackend(OktaAPIClient, ModelBackend):
 		
 		user_groups = []
 		if okta_user is not None:
-			user_groups = [group.profile.name for group in self.okta_api_request('list_user_groups', okta_user.id)]
+			user_groups = [group.profile.name for group in self._api_client('list_user_groups', okta_user.id)]
 
 			if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT:
 				if frozenset(settings.OKTA_CLIENT['SUPER_USER_GROUPS']) & frozenset(user_groups):
