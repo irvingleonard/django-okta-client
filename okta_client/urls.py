@@ -15,8 +15,8 @@ if hasattr(settings, 'OKTA_CLIENT'):
 	urlpatterns = [
 		path('accounts/login/', views.LoginView.as_view(), name='login'),
 		path('accounts/logout/', views.LogoutView.as_view(), name='logout'),
-		path('/'.join((settings.OKTA_CLIENT_LOCAL_PATH, 'acs/')), csrf_exempt(views.ACSView.as_view()), name='acs'),
-		path('/'.join((settings.OKTA_CLIENT_LOCAL_PATH, 'event_hooks/')), views.OktaEventHooks.as_view(), name='event_hooks'),
+		path('/'.join((settings.OKTA_CLIENT['LOCAL_PATH'], 'acs/')), csrf_exempt(views.ACSView.as_view()), name='acs'),
+		path('/'.join((settings.OKTA_CLIENT['LOCAL_PATH'], 'event_hooks/')), views.OktaEventHooks.as_view(), name='event_hooks'),
 	]
 else:
 	urlpatterns = [
