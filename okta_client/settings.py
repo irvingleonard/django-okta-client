@@ -82,13 +82,12 @@ def normalized_settings(**django_settings):
 
 	if okta_client:
 		django_settings['OKTA_CLIENT'] = okta_client
+		django_settings['OKTA_CLIENT']['LOCAL_PATH'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_LOCAL_PATH']
 
 		if 'AUTHENTICATION_BACKENDS' not in django_settings:
 			django_settings['AUTHENTICATION_BACKENDS'] = ['okta_client.auth_backends.OktaBackend', 'django.contrib.auth.backends.ModelBackend']
 		elif 'okta_client.auth_backends.OktaBackend' not in django_settings['AUTHENTICATION_BACKENDS']:
 			django_settings['AUTHENTICATION_BACKENDS'] = ['okta_client.auth_backends.OktaBackend'] + django_settings['AUTHENTICATION_BACKENDS']
-
-	django_settings['OKTA_CLIENT_LOCAL_PATH'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_LOCAL_PATH']
 
 	if 'REST_FRAMEWORK' not in django_settings:
 		django_settings['REST_FRAMEWORK'] = {
