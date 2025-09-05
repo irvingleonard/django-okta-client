@@ -23,12 +23,12 @@ class OktaBackend(ModelBackend):
 	Include Okta related specifics to the authentication process.
 	"""
 
+	_api_client = OktaAPIClient()
+
 	def authenticate(self, request, login, **user_details):
 		"""Noop check
 		Retrieve the user details using the Okta API, check for admin access, and update group membership (creating groups if needed)
 		"""
-
-		_api_client = OktaAPIClient()
 
 		try:
 			self._api_client.okta_api_client
