@@ -27,9 +27,9 @@ classifiers = [
 ]
 dependencies = [
 	'asgiref',
-    'devautotools>=1.2.0',
 	'django',
 	'djangorestframework',
+    'normalized-django-settings',
 	'pysaml2',
 	'okta',
 ]
