@@ -6,7 +6,7 @@ Okta Client Django settings.
 from logging import getLogger
 from urllib.parse import urlsplit, urlunsplit
 
-from devautotools import decode_setting, path_for_setting
+from normalized_django_settings import decode_setting, path_for_setting, setting_is_true
 
 DEFAULT_LOCAL_PATH = 'okta_client'
 LOGGER = getLogger(__name__)
