@@ -215,4 +215,8 @@ Assuming the previous arrangement, to deploy a local dev version of the app in a
 ```
  env DJANGO_CREATESUPERUSER_USERNAME=login ~/venv/bin/python -m devautotools deploy_local_django_site --extra_paths_to_link templates  --superuser_password SuperSecretThing conf/my_settings.json
 ```
+In Windows this would be
+```
+$env:DJANGO_CREATESUPERUSER_USERNAME="login"; ~/venv/Scripts/python.exe -m devautotools deploy_local_django_site --extra_paths_to_link templates  --superuser_password SuperSecretThing conf/my_settings.json
+```
 This will re-create the virtual environment, install all the dependencies (all of them, all the optional sections, be careful with what you put in `pyproject.toml`), setup a linked Django `test_site`, run the migrations, and start the test server. You'll get a command to get the test server up again without having to go over all the deployment again. The `DJANGO_CREATESUPERUSER_USERNAME=login` variable is needed to tell `devautotools` which attribute to populate for the `createsuperuser` command.
