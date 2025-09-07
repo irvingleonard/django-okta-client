@@ -6,7 +6,7 @@ Okta Client Django settings.
 from logging import getLogger
 from urllib.parse import urlsplit, urlunsplit
 
-from devautotools import path_for_setting
+from devautotools import decode_setting, path_for_setting
 
 DEFAULT_LOCAL_PATH = 'okta_client'
 LOGGER = getLogger(__name__)
@@ -58,7 +58,9 @@ def normalized_settings(**django_settings):
 	elif 'OKTA_CLIENT_ORG_URL' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
 		okta_client['ORG_URL'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_ORG_URL']
 
-	okta_api_client_key = path_for_setting(django_settings, 'OKTA_CLIENT_PRIVATE_KEY')
+	okta_api_client_key = decode_setting(django_settings, 'OKTA_CLIENT_PRIVATE_KEY')
+	if not isinstance(okta_api_client_key, str):
+		okta_api_client_key = okta_api_client_key.decode('utf-8')
 	okta_api_client = None
 	if (EXPECTED_VALUES_FROM_ENV['OKTA_CLIENT_OAUTH_SETTINGS_FROM_ENV'].issubset(django_settings['ENVIRONMENTAL_SETTINGS_KEYS'])) and (okta_api_client_key is not None):
 		okta_api_client = {
