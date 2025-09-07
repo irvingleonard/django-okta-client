@@ -5,17 +5,17 @@ Configuration parameters for a test deployment of django-okta-client.
 
 from pathlib import Path
 
-from devautotools import django_normalized_settings
+from normalized_django_settings import normalize_settings
 
 from .settings import *
 
 SITE_DIR = Path(__file__).parent
 
 settings_module_names = (
-    'devautotools',
+    'normalized_django_settings.settings',
     'okta_client.settings',
 )
 global_state = globals()
-global_state |= django_normalized_settings(*settings_module_names, django_settings=globals())
+global_state |= normalize_settings(*settings_module_names, django_settings=globals())
 
 TEMPLATES[0]['DIRS'].append((SITE_DIR / 'templates').resolve(strict=True))
