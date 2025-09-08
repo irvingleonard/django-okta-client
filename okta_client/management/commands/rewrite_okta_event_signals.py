@@ -4,6 +4,7 @@ Custom command to rewrite the okta_client.signals.events file with an updated li
 """
 
 from csv import reader as csv_reader
+from importlib import import_module
 from logging import getLogger
 from pathlib import Path
 from urllib.request import urlopen
@@ -11,11 +12,10 @@ from urllib.request import urlopen
 from django.core.management.base import BaseCommand, CommandError
 from django.template.loader import get_template
 
-from okta_client.signals import events
-
 DEFAULT_CSV_URL = 'https://developer.okta.com/docs/okta-event-types.csv'
 DEFAULT_HOOK_ELIGIBLE_TAG = 'event-hook-eligible'
 DEFAULT_HEADERS = ('Event Type', 'Description', 'Tags')
+DEFAULT_OKTA_EVENT_MODULE = 'okta_client.signals.events'
 LOGGER = getLogger(__name__)
 SIGNALS_EVENTS_FILE_TEMPLATE = 'okta-client/signals_events.py-template'
 
@@ -36,6 +36,7 @@ class Command(BaseCommand):
 		parser.add_argument('--event-type-header', default=DEFAULT_HEADERS[0], help=f'The tag to filter event types by; defaults to "{DEFAULT_HEADERS[0]}"')
 		parser.add_argument('--description-header', default=DEFAULT_HEADERS[1], help=f'The tag to filter event types by; defaults to "{DEFAULT_HEADERS[1]}"')
 		parser.add_argument('--tags-header', default=DEFAULT_HEADERS[2], help=f'The tag to filter event types by; defaults to "{DEFAULT_HEADERS[2]}"')
+		parser.add_argument('--target-module', default=DEFAULT_OKTA_EVENT_MODULE, help=f'The module whose file will be rewritten with the result; defaults to "{DEFAULT_OKTA_EVENT_MODULE}"')
 
 	def handle(self, *args, **options):
 		"""Actual command behavior
@@ -78,8 +79,19 @@ class Command(BaseCommand):
 
 		try:
 			template = get_template(SIGNALS_EVENTS_FILE_TEMPLATE)
-			Path(events.__file__).write_text(template.render({'signals' : hookable_event_types}))
+			content = template.render({'signals': hookable_event_types})
 		except Exception:
-			raise CommandError(f"Couldn't use template \"{SIGNALS_EVENTS_FILE_TEMPLATE}\" to rewrite OKTA event signals file: {events.__file__}")
+			raise CommandError(f"Couldn't render the template: {SIGNALS_EVENTS_FILE_TEMPLATE}")
+		
+		try:
+			target_module = import_module(options['target_module'])
+		except ImportError:
+			raise CommandError(f'Not a valid output module: {options['target_module']}')
+		
+		target_file = Path(target_module.__file__)
+		try:
+			target_file.write_text(content)
+		except Exception:
+			raise CommandError(f"Couldn't write to the target file: {target_file}")
 
 		self.stdout.write(self.style.SUCCESS(f'Successfully rewritten OKTA event signals. Total : {len(hookable_event_types)}'))

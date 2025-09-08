@@ -10,13 +10,13 @@ authors = [
 	{ name = 'Irving Leonard', email = 'irvingleonard@gmail.com'}
 ]
 keywords = ['okta', 'saml', 'saml2']
-license = {text = 'BSD 2-Clause "Simplified" License'}
+license = {text = 'The Unlicense'}
 classifiers = [
 	'Development Status :: 4 - Beta',
 	'Environment :: Web Environment',
 	'Framework :: Django',
 	'Intended Audience :: Developers',
-	'License :: OSI Approved :: BSD License',
+	'License :: OSI Approved :: The Unlicense (Unlicense)',
 	'Natural Language :: English',
 	'Operating System :: OS Independent',
 	'Programming Language :: Python',
@@ -29,13 +29,13 @@ dependencies = [
 	'asgiref',
 	'django',
 	'djangorestframework',
+    'normalized-django-settings',
 	'pysaml2',
 	'okta',
 ]
 
 [project.optional-dependencies]
 dev = [
-	'devautotools',
 	'simplifiedapp',
 ]
 production=[

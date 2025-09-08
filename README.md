@@ -2,21 +2,18 @@
  
 This project aims to integrate your Django site with Okta.
 
-TLDR; using the [`Normalized Django settings system`](https://github.com/irvingleonard/devautotools?tab=readme-ov-file#normalized-django-settings-system) you'll leverage the `common_settings`function to simplify the configuration.
+TLDR; using the [`Normalized Django settings system`](https://github.com/irvingleonard/devautotools?tab=readme-ov-file#normalized-django-settings-system) you'll leverage the `normalized_settings`function to simplify the configuration.
 At least make your site's `settings.py` look like this:
 ```
-from okta_client.settings import common_settings as okta_client_common_settings
+from devautotools import django_normalized_settings
+
+settings_module_names = (
+	'devautotools',
+	'okta_client.settings',
+)
 
 global_state = globals()
-global_state |= okta_client_common_settings(globals())
-```
-You should probably include the basic stuff too by doing instead:
-```
-from devautotools import django_common_settings
-from okta_client.settings import common_settings as okta_client_common_settings
-
-global_state = globals()
-global_state |= okta_client_common_settings(globals(), parent_callables=[django_common_settings])
+global_state |= django_normalized_settings(*settings_module_names, django_settings=globals())
 ```
 Your site's `urls.py` should start with:
 ```
@@ -24,14 +21,9 @@ urlpatterns += [
     path('', include('okta_client.urls')),
 ]
 ```
-With any of that you'll have "everything" configured. You'll still have to provide values via environment which would enable the different things. Such environmental values would be:
+With that you'll have "everything" configured. You'll still have to provide values via environment which would enable the different things. Such environmental values would be:
 ```
 EXPECTED_VALUES_FROM_ENV = {
-	'OKTA_CLIENT_AUTH_SETTINGS_FROM_ENV': {
-		'OKTA_CLIENT_PRIVATE_KEY',
-		'OKTA_CLIENT_PRIVATE_KEY_BASE64',
-		'OKTA_CLIENT_TOKEN',
-	},
 	'OKTA_CLIENT_OAUTH_SETTINGS_FROM_ENV': {
 		'OKTA_CLIENT_ID',
 		'OKTA_CLIENT_SCOPES',
@@ -39,6 +31,8 @@ EXPECTED_VALUES_FROM_ENV = {
 	'OKTA_CLIENT_SETTINGS_FROM_ENV' : {
 		'OKTA_CLIENT_LOCAL_PATH',
 		'OKTA_CLIENT_ORG_URL',
+		'OKTA_CLIENT_PRIVATE_KEY',
+		'OKTA_CLIENT_TOKEN',
 		'OKTA_DJANGO_STAFF_USER_GROUPS',
 		'OKTA_DJANGO_SUPER_USER_GROUPS',
 		'OKTA_SAML_ASSERTION_DOMAIN_URL',
@@ -56,7 +50,7 @@ INSTALLED_APPS += [
 	'okta_client',
 ]
 ```
-(_`common_settings` adds this unconditionally_)
+(_`normalized_settings` adds this unconditionally_)
 
 ## User Authentication
 
@@ -68,7 +62,7 @@ A custom user model that follows the [default Okta profile](https://developer.ok
 ```
 AUTH_USER_MODEL = 'okta_client.OktaUser'
 ```
-(_`common_settings` adds this unconditionally_)
+(_`normalized_settings` adds this unconditionally_)
 
 This model uses the `login` attribute as the user id. It also requires the users to have: `email`, `firstName`, and `lastName`. You should enable the [API client](#api-client) or configure [SAML Assertion Attributes](#saml-assertion-attributes) to satisfy this requirement.
 
@@ -78,7 +72,7 @@ A federated authentication backend is provided to replace the [builtin Django ba
 ```
 AUTHENTICATION_BACKENDS = ['okta_client.auth_backends.OktaBackend']
 ```
-(_`common_settings` adds this if there's any "Okta client" configured_)
+(_`normalized_settings` adds this if there's any "Okta client" configured_)
 
 You could add `django.contrib.auth.backends.ModelBackend` to the list (always after `OktaBackend`) if you want to keep supporting local accounts (with passwords). Keep in mind that `OktaBackend` is a federated authentication method, so it won't actually perform any local "authentication".
 
@@ -90,7 +84,7 @@ urlpatterns += [
     path('', include('okta_client.urls')),
 ]
 ```
-(_`common_settings` can change the location of the app's views via `OKTA_CLIENT_LOCAL_PATH` which defaults to `okta_client`_)
+(_`normalized_settings` can change the location of the app's views via `OKTA_CLIENT_LOCAL_PATH` which defaults to `okta_client`_)
 
 This should be added as early as possible (near the top of the list in `urlpatterns`) to avoid other apps taking over the authentication process. This will take over the regular login process in Django so going forward it won't be possible to login with username and password following the regular way (there's still a way, with the [Noop configuration](#noop-configuration)).
 
@@ -101,7 +95,7 @@ OKTA_CLIENT = {
 	'ASSERTION_DOMAIN_URL'		: 'https//yoursite.example',
 }
 ```
-(_`common_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL` and `OKTA_SAML_ASSERTION_DOMAIN_URL` and "declare an `Okta client configured`"_)
+(_`normalized_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL` and `OKTA_SAML_ASSERTION_DOMAIN_URL` and "declare an `Okta client configured`"_)
 
 The `ASSERTION_DOMAIN_URL` is only required for HTTPS sites, it's not needed for unencrypted HTTP.
 
@@ -171,7 +165,7 @@ OKTA_CLIENT = {
 	'API_SCOPES'        : 'comma,separated,list,of,scopes',
 }
 ```
-(_`common_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL`/`OKTA_CLIENT_ORG_URL`, `OKTA_CLIENT_ID`, `OKTA_CLIENT_PRIVATE_KEY`/`OKTA_CLIENT_PRIVATE_KEY_BASE64`, and `OKTA_CLIENT_SCOPES` and "declare an `Okta client configured`"_)
+(_`normalized_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL`/`OKTA_CLIENT_ORG_URL`, `OKTA_CLIENT_ID`, `OKTA_CLIENT_PRIVATE_KEY`/`OKTA_CLIENT_PRIVATE_KEY_BASE64`, and `OKTA_CLIENT_SCOPES` and "declare an `Okta client configured`"_)
 
 The scopes would be from [this list](https://developer.okta.com/docs/api/oauth2/).
 
@@ -184,7 +178,7 @@ OKTA_CLIENT = {
 	'API_TOKEN' : 'super_secret_super_random_super_long_string',
 }
 ```
-(_`common_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL`/`OKTA_CLIENT_ORG_URL` and `OKTA_CLIENT_TOKEN` and "declare an `Okta client configured`"_)
+(_`normalized_settings` will pull these values from `OKTA_SAML_METADATA_AUTO_CONF_URL`/`OKTA_CLIENT_ORG_URL` and `OKTA_CLIENT_TOKEN` and "declare an `Okta client configured`"_)
 
 ### User details via API
 
@@ -199,7 +193,7 @@ OKTA_CLIENT = {
 	'STAFF_USER_GROUPS' : ['PowerUsers'],
 }
 ```
-(_`common_settings` will pull these values from `OKTA_DJANGO_SUPER_USER_GROUPS` and `OKTA_DJANGO_STAFF_USER_GROUPS` as comma separated lists_)
+(_`normalized_settings` will pull these values from `OKTA_DJANGO_SUPER_USER_GROUPS` and `OKTA_DJANGO_STAFF_USER_GROUPS` as comma separated lists_)
 
 Keep in mind that neither of this is about access: the access to the app is controlled in the Okta side, your Django app effectively transferred the authentication to Okta (assuming SAML is configured). With these you can control the associated attributes/flags which in turn affect the permissions in the Django Admin site. You could also create custom permissions based on this attributes, of course. 
 
@@ -219,6 +213,10 @@ The Windows version would instead use `~/venv/Scripts/python.exe` and `~/venv/Sc
 
 Assuming the previous arrangement, to deploy a local dev version of the app in a site you'll run:
 ```
- ~/venv/bin/python -m devautotools deploy_local_django_site --extra_paths_to_link templates  --superuser_password SuperSecretThing conf/my_settings.json
+ env DJANGO_CREATESUPERUSER_USERNAME=login ~/venv/bin/python -m devautotools deploy_local_django_site --extra_paths_to_link templates  --superuser_password SuperSecretThing conf/my_settings.json
 ```
-This will re-create the virtual environment, install all the dependencies (all of them, all the optional sections, be careful with what you put in `pyproject.toml`), setup a linked Django `test_site`, run the migrations, and start the test server. You'll get a command to get the test server up again without having to go over all the deployment again.
+In Windows this would be
+```
+$env:DJANGO_CREATESUPERUSER_USERNAME="login"; ~/venv/Scripts/python.exe -m devautotools deploy_local_django_site --extra_paths_to_link templates  --superuser_password SuperSecretThing conf/my_settings.json
+```
+This will re-create the virtual environment, install all the dependencies (all of them, all the optional sections, be careful with what you put in `pyproject.toml`), setup a linked Django `test_site`, run the migrations, and start the test server. You'll get a command to get the test server up again without having to go over all the deployment again. The `DJANGO_CREATESUPERUSER_USERNAME=login` variable is needed to tell `devautotools` which attribute to populate for the `createsuperuser` command.
