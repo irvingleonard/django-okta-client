@@ -93,7 +93,7 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		for field in cls._meta.fields:
 			if hasattr(okta_profile, field.name):
 				okta_attr = getattr(okta_profile, field.name)
-				if (okta_attr is None) or not len(okta_attr):
+				if (okta_attr is None) or (isinstance(okta_attr, str) and not len(okta_attr)):
 					continue
 				if isinstance(field, fields.DateTimeField):
 					okta_attr = DateTime.fromisoformat(okta_attr.rstrip('Z'))
