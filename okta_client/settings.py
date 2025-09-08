@@ -65,7 +65,7 @@ def normalized_settings(**django_settings):
 	if (EXPECTED_VALUES_FROM_ENV['OKTA_CLIENT_OAUTH_SETTINGS_FROM_ENV'].issubset(django_settings['ENVIRONMENTAL_SETTINGS_KEYS'])) and (okta_api_client_key is not None):
 		okta_api_client = {
 			'API_CLIENT_ID': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_ID'],
-			'API_SCOPES': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_SCOPES'],
+			'API_SCOPES': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_SCOPES'].split(','),
 			'API_PRIVATE_KEY': okta_api_client_key
 		}
 	elif 'OKTA_CLIENT_TOKEN' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
