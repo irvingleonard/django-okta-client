@@ -170,14 +170,14 @@ class OktaEventHookMixin:
 				if event['eventType'] in self.LOCAL_EVENT_HANDLERS:
 					local_handler = self.LOCAL_EVENT_HANDLERS[event['eventType']]
 					try:
-						local_result = local_handler(event)
-					except Exception:
-						results.append((local_handler, Exception))
+						local_result = local_handler(request=request, event=event)
+					except Exception as error_:
+						results.append((local_handler, error_))
 					else:
 						results.append((local_handler, local_result))
 
 		for signal_, params in signals_.items():
-			results += signal_.send_robust(self.__class__, **params)
+			results += signal_.send_robust(self.__class__, request=request, **params)
 
 		for handler, result in results:
 			handler = '.'.join((handler.__module__, handler.__name__))

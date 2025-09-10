@@ -18,7 +18,7 @@ class OktaUserManager(BaseUserManager):
 	
 	use_in_migrations = True
 	
-	def create_user(self, login, email, firstName, lastName, password=None, **other_fields):
+	def create_user(self, login, email, firstName, lastName, password=None, groups=None, **other_fields):
 		"""Create a local user
 		Create and save a user with the provided details.
 		"""
@@ -27,14 +27,17 @@ class OktaUserManager(BaseUserManager):
 			email = self.normalize_email(email)
 		except Exception:
 			pass
-		
+
 		user = self.model(login=login, email=email, firstName=firstName, lastName=lastName, **other_fields)
 		user.set_unusable_password()
 		user.save()
-		
+
+		if groups is not None:
+			user.update_groups(groups)
+
 		return user
 
-	def create_superuser(self, login, email, firstName, lastName, password=None, **other_fields):
+	def create_superuser(self, login, email, firstName, lastName, password=None, groups=None, **other_fields):
 		"""Create a local superuser
 		Create and save a superuser with the provided details, including a password.
 		"""
@@ -56,6 +59,9 @@ class OktaUserManager(BaseUserManager):
 		user = self.model(login=login, email=email, firstName=firstName, lastName=lastName, **other_fields)
 		user.set_password(password)
 		user.save()
+
+		if groups is not None:
+			user.update_groups(groups)
 		
 		return user
 

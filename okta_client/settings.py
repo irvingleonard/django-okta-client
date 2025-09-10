@@ -8,7 +8,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from normalized_django_settings import decode_setting, path_for_setting, setting_is_true
 
-DEFAULT_LOCAL_PATH = 'okta_client'
+DEFAULT_LOCAL_PATH = 'okta-client'
 LOGGER = getLogger(__name__)
 
 EXPECTED_VALUES_FROM_ENV = {
@@ -47,6 +47,8 @@ def normalized_settings(**django_settings):
 	if 'AUTH_USER_MODEL' not in django_settings:
 		django_settings['AUTH_USER_MODEL'] = 'okta_client.OktaUser'
 
+	django_settings['OKTA_CLIENT_LOCAL_PATH'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_LOCAL_PATH'].strip('/')
+
 	okta_client = {}
 	if 'OKTA_SAML_METADATA_AUTO_CONF_URL' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
 		okta_client |= {
@@ -84,7 +86,6 @@ def normalized_settings(**django_settings):
 
 	if okta_client:
 		django_settings['OKTA_CLIENT'] = okta_client
-		django_settings['OKTA_CLIENT']['LOCAL_PATH'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_LOCAL_PATH']
 
 		if 'AUTHENTICATION_BACKENDS' not in django_settings:
 			django_settings['AUTHENTICATION_BACKENDS'] = ['okta_client.auth_backends.OktaBackend', 'django.contrib.auth.backends.ModelBackend']
