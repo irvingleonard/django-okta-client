@@ -6,6 +6,8 @@ from logging import getLogger
 
 from django.contrib.auth.models import Group
 
+from .signals import group_created, user_left_group, user_joined_group
+
 LOGGER = getLogger(__name__)
 
 
@@ -20,9 +22,13 @@ def group_add(group, user):
 	"""
 
 	if not isinstance(group, Group):
-		group = Group.objects.get_or_create(name=group)
+		group, created = Group.objects.get_or_create(name=group)
+		if created:
+			LOGGER.debug('Created new local group: %s', group)
+			group_created.send(group)
 	LOGGER.debug('Group %s is getting a new member: %s', group, user)
 	group.user_set.add(user)
+	user_joined_group.send(group, user=user)
 
 
 def group_remove(group, user):
@@ -44,3 +50,4 @@ def group_remove(group, user):
 
 	LOGGER.debug('Group %s is losing a member: %s', group, user)
 	group.user_set.remove(user)
+	user_left_group.send(group, user=user)
