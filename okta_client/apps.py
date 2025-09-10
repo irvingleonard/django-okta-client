@@ -1,4 +1,3 @@
-#python
 """
 Django application configuration for the Okta client.
 """
@@ -7,14 +6,7 @@ from logging import getLogger
 
 from django.apps import AppConfig
 
-from .signals.events import user_lifecycle_create
-
 LOGGER = getLogger(__name__)
-
-def my_callback(sender, **kwargs):
-	event = kwargs.get('event', None)
-	LOGGER.warning('Captured event: %s', event)
-
 
 class OktaClientConfig(AppConfig):
 	"""
@@ -25,4 +17,8 @@ class OktaClientConfig(AppConfig):
 	name = 'okta_client'
 
 	def ready(self):
-		user_lifecycle_create.connect(my_callback)
+		"""
+		Connects the different signal handlers.
+		"""
+
+		from .signals import handlers as signal_handlers
