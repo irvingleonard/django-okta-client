@@ -12,6 +12,7 @@ from django.db.models import BooleanField, CharField, DateTimeField, EmailField,
 from django.utils import timezone as timezone_utils
 from django.utils.translation import gettext_lazy as _
 
+from .groups import group_add, group_remove
 from .managers import OktaUserManager
 
 LOGGER = getLogger(__name__)
@@ -156,6 +157,24 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 			else:
 				LOGGER.warning('Dropping unknown field "%s" in object: %s', key, type(self))
 		return self
+
+	def update_groups(self, group_names):
+		"""Update group membership for user
+		Bulk update the group membership based on the provided list.
+		"""
+
+		final_group_names = frozenset(group_names)
+		initial_group_names = frozenset([user_group.name for user_group in self.groups.all()])
+
+		joining_groups = final_group_names - initial_group_names
+		if joining_groups:
+			for adding_to_group in joining_groups:
+				group_add(adding_to_group, self)
+
+		leaving_groups = initial_group_names - final_group_names
+		if leaving_groups:
+			for removing_from_group in leaving_groups:
+				group_remove(removing_from_group, self)
 
 	def update_from_okta_profile(self, okta_profile):
 		"""Updates the user's attributes from an Okta profile object.
