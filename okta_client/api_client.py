@@ -56,7 +56,7 @@ class OktaAPIClient:
 		self.__setattr__(name, value)
 		return value
 
-	def __call__(self, method_name, *args, **kwargs):
+	def __call__(self, method_name, *args, retrieve_all_pages=True, **kwargs):
 		"""Okta API request
 		Makes a request to the Okta API using the configured Okta client.
 
@@ -79,11 +79,12 @@ class OktaAPIClient:
 		if err is not None:
 			raise RuntimeError(err)
 
-		while response.has_next():
-			partial, err = async_to_sync(response.next)()
-			if err is not None:
-				raise RuntimeError(err)
-			result.extend(partial)
+		if retrieve_all_pages:
+			while response.has_next():
+				partial, err = async_to_sync(response.next)()
+				if err is not None:
+					raise RuntimeError(err)
+				result.extend(partial)
 
 		return result
 
@@ -108,3 +109,29 @@ class OktaAPIClient:
 				LOGGER.exception('Unknown error occurred when retrieving Okta user: %s | %s', *args, **kwargs)
 
 		return None
+
+	def list_users(self, **kwargs):
+		"""List all users
+		A subset of users can be returned that match a supported filter expression or search criteria. Different results are returned depending on specified queries in the request.
+
+		It will swallow the exceptions and report via logging, for your convenience.
+		"""
+
+		try:
+			return self('list_users', query_params=kwargs)
+		except AttributeError:
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote user: %s | %s", *args, **kwargs)
+		except OktaAPIException as error_:
+			LOGGER.exception('Unknown error occurred when retrieving Okta user: %s | %s', *args, **kwargs)
+
+		return []
+
+	def ping_users_endpoint(self):
+		"""Ping users endpoint
+		Attempt a query to the users endpoint and report availability. Doesn't handle exceptions, it will let them bubble up.
+
+		:return: True if the query succeeds.
+		:rtype: bool
+		"""
+
+		result = len(self('list_users', retrieve_all_pages=False, query_params={'limit':'1'})) > 0
