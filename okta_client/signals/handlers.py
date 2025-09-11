@@ -11,6 +11,7 @@ from django.db.models.signals import m2m_changed
 from django.dispatch import receiver
 
 from .groups import user_joined_group, user_left_group
+from ..utils import report_signal_results
 
 LOGGER = getLogger(__name__)
 UserModel = get_user_model()
@@ -76,26 +77,33 @@ def signals_for_group_membership(sender, **kwargs):
 	Trigger signals for group membership changes.
 	"""
 
+	results = []
 	if kwargs['action'] == 'post_add':
 		if kwargs['model'] is Group:
 			groups = [kwargs['model'].objects.get(pk=pk) for pk in kwargs['pk_set']]
 			for group in groups:
-				user_joined_group.send(sender=group, user=kwargs['instance'])
+				results += user_joined_group.send_robust(sender=group, user=kwargs['instance'])
 		elif kwargs['model'] is UserModel:
 			users = [kwargs['model'].objects.get(pk=pk) for pk in kwargs['pk_set']]
 			for user in users:
-				user_joined_group.send(sender=kwargs['instance'], user=user)
+				results += user_joined_group.send_robust(sender=kwargs['instance'], user=user)
 		else:
 			LOGGER.error("Don't know how to handle user model to groups addition: %s", kwargs)
+
+		report_signal_results(results, 'Group addition')
 
 	elif kwargs['action'] == 'post_remove':
 		if kwargs['model'] is Group:
 			groups = [kwargs['model'].objects.get(pk=pk) for pk in kwargs['pk_set']]
 			for group in groups:
-				user_left_group.send(sender=group, user=kwargs['instance'])
+				results += user_left_group.send_robust(sender=group, user=kwargs['instance'])
 		elif kwargs['model'] is UserModel:
 			users = [kwargs['model'].objects.get(pk=pk) for pk in kwargs['pk_set']]
 			for user in users:
-				user_left_group.send(sender=kwargs['instance'], user=user)
+				results += user_left_group.send_robust(sender=kwargs['instance'], user=user)
 		else:
 			LOGGER.error("Don't know how to handle user model to groups removal: %s", kwargs)
+
+		report_signal_results(results, 'Group removal')
+
+
