@@ -189,6 +189,8 @@ class OktaUserManager(BaseUserManager):
 		if user is None:
 			raise ValueError(f"Couldn't find user anywhere: {user_param}")
 
+		user.update_groups_from_okta()
+
 		return user
 
 	def update_all(self):
