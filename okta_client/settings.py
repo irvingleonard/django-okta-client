@@ -51,42 +51,45 @@ def normalized_settings(**django_settings):
 
 	okta_client = {}
 	if 'OKTA_SAML_METADATA_AUTO_CONF_URL' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
-		okta_client |= {
+		okta_client['SAML'] = {
 			'METADATA_AUTO_CONF_URL': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_SAML_METADATA_AUTO_CONF_URL'],
+		}
+		okta_client['API'] = {
 			'ORG_URL': urlunsplit(urlsplit(django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_SAML_METADATA_AUTO_CONF_URL'])[:2] + ('', '', '')),
 		}
 		if 'OKTA_SAML_ASSERTION_DOMAIN_URL' in django_settings['ENVIRONMENTAL_SETTINGS']:
-			okta_client['ASSERTION_DOMAIN_URL'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_SAML_ASSERTION_DOMAIN_URL']
+			okta_client['SAML']['ASSERTION_DOMAIN_URL'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_SAML_ASSERTION_DOMAIN_URL']
 	elif 'OKTA_CLIENT_ORG_URL' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
-		okta_client['ORG_URL'] = django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_ORG_URL']
+		okta_client['API'] = {'ORG_URL': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_ORG_URL']}
 
-	okta_api_client_key = decode_setting(django_settings, 'OKTA_CLIENT_PRIVATE_KEY')
-	if (okta_api_client_key is not None) and not isinstance(okta_api_client_key, str):
-		okta_api_client_key = okta_api_client_key.decode('utf-8')
-	okta_api_client = None
-	if (EXPECTED_VALUES_FROM_ENV['OKTA_CLIENT_OAUTH_SETTINGS_FROM_ENV'].issubset(django_settings['ENVIRONMENTAL_SETTINGS_KEYS'])) and (okta_api_client_key is not None):
-		okta_api_client = {
-			'API_CLIENT_ID': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_ID'],
-			'API_SCOPES': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_SCOPES'].split(','),
-			'API_PRIVATE_KEY': okta_api_client_key
-		}
-	elif 'OKTA_CLIENT_TOKEN' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
-		okta_api_client = {'API_TOKEN': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_TOKEN']}
+	if 'API' in okta_client:
+		okta_api_client_key = decode_setting(django_settings, 'OKTA_CLIENT_PRIVATE_KEY')
+		if (okta_api_client_key is not None) and not isinstance(okta_api_client_key, str):
+			okta_api_client_key = okta_api_client_key.decode('utf-8')
+		if (okta_api_client_key is not None) and (EXPECTED_VALUES_FROM_ENV['OKTA_CLIENT_OAUTH_SETTINGS_FROM_ENV'].issubset(django_settings['ENVIRONMENTAL_SETTINGS_KEYS'])):
+			okta_client['API'] |= {
+				'API_CLIENT_ID': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_ID'],
+				'API_SCOPES': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_SCOPES'].split(','),
+				'API_PRIVATE_KEY': okta_api_client_key
+			}
+		elif 'OKTA_CLIENT_TOKEN' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
+			okta_client['API'] |= {'API_TOKEN': django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_TOKEN']}
+		else:
+			LOGGER.debug('Missing authentication settings to configure the Okta API client')
+			okta_client.pop('API')
 	else:
 		LOGGER.debug('The Okta API client is not configured')
 
-	if okta_api_client is not None:
-
-		okta_client |= okta_api_client
-
+	if 'API' in okta_client:
 		if 'OKTA_DJANGO_SUPER_USER_GROUPS' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
-			okta_client['SUPER_USER_GROUPS'] = [group.strip() for group in django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_DJANGO_SUPER_USER_GROUPS'].split(',')]
+			okta_client['API']['SUPER_USER_GROUPS'] = [group.strip() for group in django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_DJANGO_SUPER_USER_GROUPS'].split(',')]
 		if 'OKTA_DJANGO_STAFF_USER_GROUPS' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
-			okta_client['STAFF_USER_GROUPS'] = [group.strip() for group in django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_DJANGO_STAFF_USER_GROUPS'].split(',')]
+			okta_client['API']['STAFF_USER_GROUPS'] = [group.strip() for group in django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_DJANGO_STAFF_USER_GROUPS'].split(',')]
 
 	if okta_client:
 		django_settings['OKTA_CLIENT'] = okta_client
 
+	if 'SAML' in okta_client:
 		if 'AUTHENTICATION_BACKENDS' not in django_settings:
 			django_settings['AUTHENTICATION_BACKENDS'] = ['okta_client.auth_backends.OktaBackend', 'django.contrib.auth.backends.ModelBackend']
 		elif 'okta_client.auth_backends.OktaBackend' not in django_settings['AUTHENTICATION_BACKENDS']:

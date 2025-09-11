@@ -11,7 +11,7 @@ from . import views
 
 app_name = 'okta-client'
 
-if hasattr(settings, 'OKTA_CLIENT'):
+if hasattr(settings, 'OKTA_CLIENT') and ('SAML' in settings.OKTA_CLIENT):
 	urlpatterns = [
 		path('accounts/login/', views.LoginView.as_view(), name='login'),
 		path('accounts/logout/', views.LogoutView.as_view(), name='logout'),

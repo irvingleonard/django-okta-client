@@ -37,6 +37,10 @@ class OktaUserModelAdmin(ModelAdmin):
 			'classes': ('collapse',),
 			'fields': ('locale', 'preferredLanguage', 'timezone'),
 		}),
+		('Okta Details', {
+			'classes': ('collapse',),
+			'fields': ('okta_id', 'okta_created', 'okta_activated', 'okta_status', 'okta_status_changed'),
+		}),
 		('Groups', {
 			'classes': ('collapse',),
 			'fields': ('groups',),

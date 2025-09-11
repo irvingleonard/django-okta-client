@@ -6,7 +6,6 @@ Django Okta Client Views
 from json import JSONDecodeError
 from logging import getLogger
 
-from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render

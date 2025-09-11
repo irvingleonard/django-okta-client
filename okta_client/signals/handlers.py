@@ -1,0 +1,109 @@
+"""
+Signal handlers. Should be included in the app's "ready" method and that would be it.
+"""
+
+from logging import getLogger
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.db.models.signals import m2m_changed
+from django.dispatch import receiver
+
+from .groups import user_joined_group, user_left_group
+from ..utils import report_signal_results
+
+LOGGER = getLogger(__name__)
+UserModel = get_user_model()
+
+
+@receiver(user_joined_group)
+def user_attribute_set_from_group(sender, **kwargs):
+	"""User attribute from group join
+	Use group join event to update the user's "is_superuser" and "is_staff" attributes.
+	"""
+
+	if not hasattr(settings, 'OKTA_CLIENT') or ('API' not in settings.OKTA_CLIENT):
+		return
+
+	if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT['API']:
+		if ((not kwargs['user'].is_superuser) or (not kwargs['user'].is_staff)) and (sender.name in settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']):
+			LOGGER.debug('User "%s" is becoming a super user because of group membership: %s', kwargs['user'], sender.name)
+			kwargs['user'].is_staff = True
+			kwargs['user'].is_superuser = True
+			kwargs['user'].save(update_fields=['is_staff', 'is_superuser'])
+			return
+
+	if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']:
+		if not kwargs['user'].is_staff and (sender.name in settings.OKTA_CLIENT['API']['STAFF_USER_GROUPS']):
+			LOGGER.debug('User "%s" is becoming a staff member because of group membership: %s', kwargs['user'], sender.name)
+			kwargs['user'].is_staff = True
+			kwargs['user'].save(update_fields=['is_staff'])
+
+
+@receiver(user_left_group)
+def user_attribute_remove_from_group(sender, **kwargs):
+	"""User attribute from group leave
+	Use group leave event to update the user's "is_superuser" and "is_staff" attributes.
+	"""
+
+	if not hasattr(settings, 'OKTA_CLIENT') or ('API' not in settings.OKTA_CLIENT):
+		return
+
+	keep_staff = False
+	if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']:
+		if sender.name in settings.OKTA_CLIENT['API']['STAFF_USER_GROUPS']:
+			current_groups = [user_group.name for user_group in kwargs['user'].groups.all()]
+			if frozenset(settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']) & frozenset(current_groups):
+				keep_staff = True
+			elif not kwargs['user'].is_superuser:
+				LOGGER.debug('User "%s" is losing staff member status by leaving group: %s', kwargs['user'], sender.name)
+				kwargs['user'].is_staff = False
+				kwargs['user'].save(update_fields=['is_staff'])
+
+	if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT:
+		if sender.name in settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']:
+			current_groups = [user_group.name for user_group in kwargs['user'].groups.all()]
+			if not (frozenset(settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']) & frozenset(current_groups)):
+				LOGGER.debug('User "%s" is losing super user status by leaving group: %s', kwargs['user'], sender.name)
+				kwargs['user'].is_staff = keep_staff
+				kwargs['user'].is_superuser = False
+				kwargs['user'].save(update_fields=['is_staff', 'is_superuser'])
+
+
+@receiver(m2m_changed, sender=UserModel.groups.through)
+def signals_for_group_membership(sender, **kwargs):
+	"""
+	Trigger signals for group membership changes.
+	"""
+
+	results = []
+	if kwargs['action'] == 'post_add':
+		if kwargs['model'] is Group:
+			groups = [kwargs['model'].objects.get(pk=pk) for pk in kwargs['pk_set']]
+			for group in groups:
+				results += user_joined_group.send_robust(sender=group, user=kwargs['instance'])
+		elif kwargs['model'] is UserModel:
+			users = [kwargs['model'].objects.get(pk=pk) for pk in kwargs['pk_set']]
+			for user in users:
+				results += user_joined_group.send_robust(sender=kwargs['instance'], user=user)
+		else:
+			LOGGER.error("Don't know how to handle user model to groups addition: %s", kwargs)
+
+		report_signal_results(results, 'Group addition')
+
+	elif kwargs['action'] == 'post_remove':
+		if kwargs['model'] is Group:
+			groups = [kwargs['model'].objects.get(pk=pk) for pk in kwargs['pk_set']]
+			for group in groups:
+				results += user_left_group.send_robust(sender=group, user=kwargs['instance'])
+		elif kwargs['model'] is UserModel:
+			users = [kwargs['model'].objects.get(pk=pk) for pk in kwargs['pk_set']]
+			for user in users:
+				results += user_left_group.send_robust(sender=kwargs['instance'], user=user)
+		else:
+			LOGGER.error("Don't know how to handle user model to groups removal: %s", kwargs)
+
+		report_signal_results(results, 'Group removal')
+
+

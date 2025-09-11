@@ -1,4 +1,3 @@
-#python
 """
 Django application configuration for the Okta client.
 """
@@ -7,10 +6,7 @@ from logging import getLogger
 
 from django.apps import AppConfig
 
-from .signals.events import user_lifecycle_create
-
 LOGGER = getLogger(__name__)
-
 
 class OktaClientConfig(AppConfig):
 	"""
@@ -19,3 +15,10 @@ class OktaClientConfig(AppConfig):
 
 	default_auto_field = 'django.db.models.BigAutoField'
 	name = 'okta_client'
+
+	def ready(self):
+		"""
+		Connects the different signal handlers.
+		"""
+
+		from .signals import handlers as signal_handlers
