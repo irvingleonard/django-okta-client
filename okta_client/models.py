@@ -228,7 +228,7 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		Queries Okta for the group membership of the user and updates the local groups accordingly.
 		"""
 
-		return self.update_groups([group.profile.name for group in self._api_client('list_user_groups', self.okta_id)])
+		return self.update_groups([group.profile.name for group in self._api_client.list_user_groups(self.okta_id)])
 
 
 

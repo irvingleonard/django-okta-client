@@ -110,6 +110,22 @@ class OktaAPIClient:
 
 		return None
 
+	def list_user_groups(self, userId):
+		"""List user groups
+		Fetches the groups of which the user is a member.
+		"""
+
+		try:
+			return self('list_user_groups', userId)
+		except AttributeError:
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve user's groups: %s", userId)
+		except OktaAPIException as error_:
+			if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
+				LOGGER.exception("Unknown error occurred when retrieving Okta user's groups: %s", userId)
+
+		return []
+
+
 	def list_users(self, **kwargs):
 		"""List all users
 		A subset of users can be returned that match a supported filter expression or search criteria. Different results are returned depending on specified queries in the request.
