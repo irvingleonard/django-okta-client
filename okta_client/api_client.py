@@ -9,8 +9,13 @@ from django.core.cache import cache
 
 from asgiref.sync import async_to_sync
 from okta.client import Client as OktaClient
+from okta.exceptions.exceptions import OktaAPIException
 
+ERROR_CODE_MAP = {
+	'USER_NOT_FOUND' : 'E0000007',
+}
 LOGGER = getLogger(__name__)
+
 
 class OktaAPIClient:
 	"""
@@ -18,6 +23,7 @@ class OktaAPIClient:
 	"""
 
 	CACHE_PREFIX = 'okta_client_api_client'
+	STATIC_CONFIG = {'raiseException': True}
 
 	def __getattr__(self, name):
 		"""Lazy instantiation
@@ -32,7 +38,7 @@ class OktaAPIClient:
 			client_config = {'orgUrl': settings.OKTA_CLIENT['ORG_URL']} | self.okta_api_credentials
 			if 'SSL_CONTEXT' in settings.OKTA_CLIENT:
 				client_config['sslContext'] = settings.OKTA_CLIENT['SSL_CONTEXT']
-			value = OktaClient(client_config)
+			value = OktaClient(client_config | self.STATIC_CONFIG)
 		elif name == 'okta_api_credentials':
 			if ('API_CLIENT_ID' in settings.OKTA_CLIENT) and ('API_PRIVATE_KEY' in settings.OKTA_CLIENT):
 				value = {
@@ -80,3 +86,25 @@ class OktaAPIClient:
 			result.extend(partial)
 
 		return result
+
+	def get_user(self, *args, **kwargs):
+		"""Get user
+		Attempt to call the "get_user" endpoint and return the results.
+
+		:param args: positional argument parameters, passed as is to the "get_user" call
+		:type args: Any
+		:param kwargs: keyword argument parameters, passed as is to the "get_user" call
+		:type kwargs: Any
+		:return: the matching user or None
+		:rtype: OktaAPIUser|None
+		"""
+
+		try:
+			return self('get_user', *args, **kwargs)
+		except AttributeError:
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote user: %s | %s", *args, **kwargs)
+		except OktaAPIException as error_:
+			if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
+				LOGGER.exception('Unknown error occurred when retrieving Okta user: %s | %s', *args, **kwargs)
+
+		return None
