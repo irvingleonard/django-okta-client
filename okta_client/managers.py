@@ -190,7 +190,4 @@ class OktaUserManager(BaseUserManager):
 
 		"""
 
-		try:
-			return [self.get_user(user) for user in self._api_client('list_users')]
-		except AttributeError:
-			return []
+		return [self.get_user(user) for user in self._api_client.list_users()]
