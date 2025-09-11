@@ -65,7 +65,7 @@ class OktaUserManager(BaseUserManager):
 		except Exception:
 			pass
 
-		user, created = self.model(login=login, email=email, firstName=firstName, lastName=lastName, **other_fields)
+		user = self.model(login=login, email=email, firstName=firstName, lastName=lastName, **other_fields)
 		user.set_unusable_password()
 		user.save()
 
