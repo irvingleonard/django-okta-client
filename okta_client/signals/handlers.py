@@ -27,7 +27,7 @@ def user_attribute_set_from_group(sender, **kwargs):
 		return
 
 	if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT:
-		if not kwargs['user'].is_superuser and (sender.name in settings.OKTA_CLIENT['SUPER_USER_GROUPS']):
+		if ((not kwargs['user'].is_superuser) or (not kwargs['user'].is_staff)) and (sender.name in settings.OKTA_CLIENT['SUPER_USER_GROUPS']):
 			LOGGER.debug('User "%s" is becoming a super user because of group membership: %s', kwargs['user'], sender.name)
 			kwargs['user'].is_staff = True
 			kwargs['user'].is_superuser = True
