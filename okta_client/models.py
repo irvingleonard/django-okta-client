@@ -13,7 +13,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .api_client import OktaAPIClient
 from .groups import group_add, group_remove
-from .managers import OktaUserManager, OktaUserManagerRemote
+from .managers import OktaUserManager
 
 LOGGER = getLogger(__name__)
 
@@ -40,8 +40,6 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 	"""Default Okta profile
 	Based on the official documentation as of (10/2021) https://developer.okta.com/docs/reference/api/users/#default-profile-properties
 	"""
-
-	_api_client = OktaAPIClient()
 
 	login = CharField(primary_key=True, max_length=100, validators=[validator_5_to_100], verbose_name=_('login'), help_text=_('Unique identifier for the user (username)'))
 	email = EmailField(blank=False, validators=[validator_5_to_100], verbose_name=_('email'), help_text=_('Primary email address of user'))
@@ -86,12 +84,13 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 	okta_status_changed = DateTimeField(null=True, blank=True, verbose_name=_("status changed"), help_text=_('Timestamp of the last update of the "status" attribute.'))
 
 	objects = OktaUserManager()
-	remote_objects = OktaUserManagerRemote()
 	
 	EMAIL_FIELD = 'email'
 	USERNAME_FIELD = 'login'
 	REQUIRED_FIELDS = ['email', 'firstName', 'lastName']
-	
+
+	_api_client = OktaAPIClient()
+
 	class Meta:
 		verbose_name = _('okta user')
 		verbose_name_plural = _('okta users')
@@ -128,8 +127,10 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		attributes['okta_id'] = okta_user.id
 		for dates_ in ('activated', 'created', 'status_changed'):
 			if (attr := getattr(okta_user, dates_)) is not None:
-				attributes[f'okta_{dates_}'] = DateTime.fromisoformat(attr.rstrip('Z'))
+				attributes[f'okta_{dates_}'] = DateTime.fromisoformat(attr)
 		attributes['okta_status'] = OktaStatuses[okta_user.status]
+		if attributes['okta_status'] != OktaStatuses.ACTIVE:
+			attributes['is_active'] = False
 
 		return attributes
 
@@ -190,6 +191,20 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 				LOGGER.warning('Dropping unknown field "%s" in object: %s', key, type(self))
 		return self
 
+	def update_from_okta_user(self, okta_user):
+		"""Updates the user's attributes from an Okta user object.
+		This method extracts relevant attributes from the provided `okta_user` using `_attributes_from_okta_user` and then updates the corresponding fields on the current user instance.
+
+		:param okta_user: An object representing the Okta user.
+		:type okta_user: object
+		:return: The updated user instance.
+		:rtype: self
+		"""
+
+		for field_name, field_value in self._attributes_from_okta_user(okta_user).items():
+			setattr(self, field_name, field_value)
+		return self
+
 	def update_groups(self, group_names):
 		"""Update group membership for user
 		Bulk update the group membership based on the provided list.
@@ -215,19 +230,6 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 
 		return self.update_groups([group.profile.name for group in self._api_client('list_user_groups', self.okta_id)])
 
-	def update_from_okta_user(self, okta_user):
-		"""Updates the user's attributes from an Okta user object.
-		This method extracts relevant attributes from the provided `okta_user` using `_attributes_from_okta_user` and then updates the corresponding fields on the current user instance.
-
-		:param okta_user: An object representing the Okta user.
-		:type okta_user: object
-		:return: The updated user instance.
-		:rtype: self
-		"""
-
-		for field_name, field_value in self._attributes_from_okta_user(okta_user).items():
-			setattr(self, field_name, field_value)
-		return self
 
 
 class OktaUser(AbstractOktaUser):
