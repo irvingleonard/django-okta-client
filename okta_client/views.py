@@ -148,6 +148,7 @@ class IndexView(LoginRequiredMixin, View):
 
 		user_model = get_user_model()
 		LOGGER.warning('Got: %s', user_model.remote_objects.all())
-		# LOGGER.warning('Got user: %s', user_model.remote_objects.get())
+		# LOGGER.warning('Got user: %s', user_model.remote_objects.get_user('irvingleonard'))
+		# LOGGER.warning('Got user: %s', user_model.remote_objects.get_user(user_model.remote_objects._api_client('get_user', 'irving.leonard')))
 
 		return render(request, 'okta-client/index.html')
