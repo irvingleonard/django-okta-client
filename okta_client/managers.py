@@ -159,8 +159,14 @@ class OktaUserManager(BaseUserManager):
 		return user, created
 
 	def get_user(self, user):
-		"""
+		"""Get user
+		Updates from Okta (if applicable) and retrieves a UserModel user. Local users won't be updated. If the user doesn't match an Okta user or a local user a ValueError will be raised.
 
+		:param user: the user to get
+		:type user: self.model|OktaAPIUser|str
+		:return: the user
+		:rtype: self.model
+		:raises ValueError: if the user doesn't exist in Okta or locally
 		"""
 
 		user_param = user
@@ -186,8 +192,11 @@ class OktaUserManager(BaseUserManager):
 		return user
 
 	def update_all(self):
-		"""
+		"""Update all
+		Leverages the side effects of self.get_user to update all the users from the Okta directory.
 
+		:return: the list of updated users
+		:rtype: list
 		"""
 
 		return [self.get_user(user) for user in self._api_client.list_users()]
