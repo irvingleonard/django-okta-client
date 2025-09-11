@@ -35,20 +35,20 @@ class OktaAPIClient:
 		"""
 
 		if name == 'okta_api_client':
-			client_config = {'orgUrl': settings.OKTA_CLIENT['ORG_URL']} | self.okta_api_credentials
+			client_config = {'orgUrl': settings.OKTA_CLIENT['API']['ORG_URL']} | self.okta_api_credentials
 			if 'SSL_CONTEXT' in settings.OKTA_CLIENT:
 				client_config['sslContext'] = settings.OKTA_CLIENT['SSL_CONTEXT']
 			value = OktaClient(client_config | self.STATIC_CONFIG)
 		elif name == 'okta_api_credentials':
-			if ('API_CLIENT_ID' in settings.OKTA_CLIENT) and ('API_PRIVATE_KEY' in settings.OKTA_CLIENT):
+			if ('API_CLIENT_ID' in settings.OKTA_CLIENT['API']) and ('API_PRIVATE_KEY' in settings.OKTA_CLIENT['API']):
 				value = {
 					'authorizationMode'	: 'PrivateKey',
-					'clientId'			: settings.OKTA_CLIENT['API_CLIENT_ID'],
-					'privateKey'		: settings.OKTA_CLIENT['API_PRIVATE_KEY'],
-					'scopes'			: settings.OKTA_CLIENT.get('API_SCOPES', None),
+					'clientId'			: settings.OKTA_CLIENT['API']['API_CLIENT_ID'],
+					'privateKey'		: settings.OKTA_CLIENT['API']['API_PRIVATE_KEY'],
+					'scopes'			: settings.OKTA_CLIENT['API'].get('API_SCOPES', None),
 				}
 			elif 'API_TOKEN' in settings.OKTA_CLIENT:
-				value = {'token': settings.OKTA_CLIENT['API_TOKEN']}
+				value = {'token': settings.OKTA_CLIENT['API']['API_TOKEN']}
 			else:
 				raise RuntimeError('Missing auth settings for Okta client')
 		else:
@@ -103,10 +103,10 @@ class OktaAPIClient:
 		try:
 			return self('get_user', *args, **kwargs)
 		except AttributeError:
-			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote user: %s | %s", *args, **kwargs)
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote user: %s | %s", args, kwargs)
 		except OktaAPIException as error_:
 			if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
-				LOGGER.exception('Unknown error occurred when retrieving Okta user: %s | %s', *args, **kwargs)
+				LOGGER.exception('Unknown error occurred when retrieving Okta user: %s | %s', args, kwargs)
 
 		return None
 

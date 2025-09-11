@@ -215,9 +215,9 @@ class SPConfig:
 			"""
 
 			try:
-				okta_settings = django_settings.OKTA_CLIENT
+				okta_settings = django_settings.OKTA_CLIENT['SAML']
 			except AttributeError:
-				raise ValueError('Missing OKTA_CLIENT section in Django settings')
+				raise ValueError("Missing OKTA_CLIENT['SAML'] section in Django settings")
 
 			super().__init__()
 
