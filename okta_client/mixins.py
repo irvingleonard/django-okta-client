@@ -17,6 +17,7 @@ from saml2.config import SPConfig as SPConfig_
 from .exceptions import SAMLAssertionError
 from .signals import okta_event_hook
 from .signals import events as okta_events_signals
+from .signals.local_handlers import update_user_from_okta
 from .utils import report_signal_results
 
 LOGGER = getLogger(__name__)
@@ -129,7 +130,18 @@ class OktaEventHookMixin:
 	"""
 
 	LOCAL_EVENT_HANDLERS = {
-		'user.lifecycle.create' : lambda sender, **kwargs: None,
+		'user.account.lock' : update_user_from_okta,
+		'user.account.reset_password' : update_user_from_okta,
+		'user.account.unlock' : update_user_from_okta,
+		'user.account.unlock_by_admin' : update_user_from_okta,
+		'user.account.update_password' : update_user_from_okta,
+		'user.account.update_profile' : update_user_from_okta,
+		'user.lifecycle.activate' : update_user_from_okta,
+		'user.lifecycle.create' : update_user_from_okta,
+		'user.lifecycle.deactivate' : update_user_from_okta,
+		'user.lifecycle.reactivate' : update_user_from_okta,
+		'user.lifecycle.suspend' : update_user_from_okta,
+		'user.lifecycle.unsuspend' : update_user_from_okta,
 	}
 
 	def authenticate_endpoint(self, request):
