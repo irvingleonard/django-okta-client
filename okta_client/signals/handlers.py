@@ -23,19 +23,19 @@ def user_attribute_set_from_group(sender, **kwargs):
 	Use group join event to update the user's "is_superuser" and "is_staff" attributes.
 	"""
 
-	if not hasattr(settings, 'OKTA_CLIENT'):
+	if not hasattr(settings, 'OKTA_CLIENT') or ('API' not in settings.OKTA_CLIENT):
 		return
 
-	if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT:
-		if ((not kwargs['user'].is_superuser) or (not kwargs['user'].is_staff)) and (sender.name in settings.OKTA_CLIENT['SUPER_USER_GROUPS']):
+	if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT['API']:
+		if ((not kwargs['user'].is_superuser) or (not kwargs['user'].is_staff)) and (sender.name in settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']):
 			LOGGER.debug('User "%s" is becoming a super user because of group membership: %s', kwargs['user'], sender.name)
 			kwargs['user'].is_staff = True
 			kwargs['user'].is_superuser = True
 			kwargs['user'].save(update_fields=['is_staff', 'is_superuser'])
 			return
 
-	if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT:
-		if not kwargs['user'].is_staff and (sender.name in settings.OKTA_CLIENT['STAFF_USER_GROUPS']):
+	if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']:
+		if not kwargs['user'].is_staff and (sender.name in settings.OKTA_CLIENT['API']['STAFF_USER_GROUPS']):
 			LOGGER.debug('User "%s" is becoming a staff member because of group membership: %s', kwargs['user'], sender.name)
 			kwargs['user'].is_staff = True
 			kwargs['user'].save(update_fields=['is_staff'])
@@ -47,14 +47,14 @@ def user_attribute_remove_from_group(sender, **kwargs):
 	Use group leave event to update the user's "is_superuser" and "is_staff" attributes.
 	"""
 
-	if not hasattr(settings, 'OKTA_CLIENT'):
+	if not hasattr(settings, 'OKTA_CLIENT') or ('API' not in settings.OKTA_CLIENT):
 		return
 
 	keep_staff = False
-	if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT:
-		if sender.name in settings.OKTA_CLIENT['STAFF_USER_GROUPS']:
+	if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']:
+		if sender.name in settings.OKTA_CLIENT['API']['STAFF_USER_GROUPS']:
 			current_groups = [user_group.name for user_group in kwargs['user'].groups.all()]
-			if frozenset(settings.OKTA_CLIENT['SUPER_USER_GROUPS']) & frozenset(current_groups):
+			if frozenset(settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']) & frozenset(current_groups):
 				keep_staff = True
 			elif not kwargs['user'].is_superuser:
 				LOGGER.debug('User "%s" is losing staff member status by leaving group: %s', kwargs['user'], sender.name)
@@ -62,9 +62,9 @@ def user_attribute_remove_from_group(sender, **kwargs):
 				kwargs['user'].save(update_fields=['is_staff'])
 
 	if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT:
-		if sender.name in settings.OKTA_CLIENT['SUPER_USER_GROUPS']:
+		if sender.name in settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']:
 			current_groups = [user_group.name for user_group in kwargs['user'].groups.all()]
-			if not (frozenset(settings.OKTA_CLIENT['SUPER_USER_GROUPS']) & frozenset(current_groups)):
+			if not (frozenset(settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']) & frozenset(current_groups)):
 				LOGGER.debug('User "%s" is losing super user status by leaving group: %s', kwargs['user'], sender.name)
 				kwargs['user'].is_staff = keep_staff
 				kwargs['user'].is_superuser = False
