@@ -36,7 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-	'simplifiedapp',
+	'simplifiedapp==0.7.4',
 ]
 production=[
 	'gevent',

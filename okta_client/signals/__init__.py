@@ -1,4 +1,3 @@
-#python
 """
 This module defines Django signals related to Okta events.
 """
