@@ -120,9 +120,9 @@ class OktaAPIClient:
 		try:
 			return self('list_users', query_params=kwargs)
 		except AttributeError:
-			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote user: %s | %s", *args, **kwargs)
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote user: %s", **kwargs)
 		except OktaAPIException as error_:
-			LOGGER.exception('Unknown error occurred when retrieving Okta user: %s | %s', *args, **kwargs)
+			LOGGER.exception('Unknown error occurred when retrieving Okta user: %s', **kwargs)
 
 		return []
 
