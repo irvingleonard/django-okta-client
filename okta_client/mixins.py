@@ -17,6 +17,7 @@ from saml2.config import SPConfig as SPConfig_
 from .exceptions import SAMLAssertionError
 from .signals import okta_event_hook
 from .signals import events as okta_events_signals
+from .utils import report_signal_results
 
 LOGGER = getLogger(__name__)
 
@@ -179,14 +180,7 @@ class OktaEventHookMixin:
 		for signal_, params in signals_.items():
 			results += signal_.send_robust(self.__class__, request=request, **params)
 
-		for handler, result in results:
-			handler = '.'.join((handler.__module__, handler.__name__))
-			if isinstance(result, Exception):
-				LOGGER.error('Handler "%s" experienced an error while processing an Okta event hook: %s', handler, result)
-			elif result:
-				LOGGER.warning('Handler "%s" returned a value while processing an Okta event hook. Okta does not expect an answer, discarding: %s', handler, result)
-			else:
-				LOGGER.debug('Handler "%s" completed successfully the processing of an Okta event hook.', handler)
+		report_signal_results(results, 'Okta event hook')
 
 
 class SPConfig:
