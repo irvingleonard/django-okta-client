@@ -6,7 +6,6 @@ Django Okta Client Views
 from json import JSONDecodeError
 from logging import getLogger
 
-from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
@@ -145,10 +144,5 @@ class IndexView(LoginRequiredMixin, View):
 		:type request: object
 		:returns object: the Django response
 		"""
-
-		user_model = get_user_model()
-		LOGGER.warning('Got: %s', user_model.remote_objects.all())
-		# LOGGER.warning('Got user: %s', user_model.remote_objects.get_user('irvingleonard'))
-		# LOGGER.warning('Got user: %s', user_model.remote_objects.get_user(user_model.remote_objects._api_client('get_user', 'irving.leonard')))
 
 		return render(request, 'okta-client/index.html')
