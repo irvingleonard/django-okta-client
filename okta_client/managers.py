@@ -207,8 +207,7 @@ class OktaUserManager(BaseUserManager):
 			user.save()
 			user.update_groups_from_okta()
 		elif okta_user is None:
-
-			if user.last_refresh_timestamp and (now() > (user.last_refresh_timestamp + self._get_refresh_delta())):
+			if (user.last_refresh_timestamp is None) or (now() > (user.last_refresh_timestamp + self._get_refresh_delta())):
 				okta_user = self._api_client.get_user(user_param)
 				if okta_user is not None:
 					user.update_from_okta_user(okta_user)
