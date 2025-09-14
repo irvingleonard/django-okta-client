@@ -26,16 +26,16 @@ def user_attribute_set_from_group(sender, **kwargs):
 	if not hasattr(settings, 'OKTA_CLIENT') or ('API' not in settings.OKTA_CLIENT):
 		return
 
-	if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT['API']:
-		if ((not kwargs['user'].is_superuser) or (not kwargs['user'].is_staff)) and (sender.name in settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']):
+	if ((not kwargs['user'].is_superuser) or (not kwargs['user'].is_staff)) and ('SUPER_USER_GROUPS' in settings.OKTA_CLIENT['API']):
+		if sender.name in settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']:
 			LOGGER.debug('User "%s" is becoming a super user because of group membership: %s', kwargs['user'], sender.name)
 			kwargs['user'].is_staff = True
 			kwargs['user'].is_superuser = True
 			kwargs['user'].save(update_fields=['is_staff', 'is_superuser'])
 			return
 
-	if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']:
-		if not kwargs['user'].is_staff and (sender.name in settings.OKTA_CLIENT['API']['STAFF_USER_GROUPS']):
+	if not kwargs['user'].is_staff and ('STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']):
+		if sender.name in settings.OKTA_CLIENT['API']['STAFF_USER_GROUPS']:
 			LOGGER.debug('User "%s" is becoming a staff member because of group membership: %s', kwargs['user'], sender.name)
 			kwargs['user'].is_staff = True
 			kwargs['user'].save(update_fields=['is_staff'])
@@ -51,7 +51,7 @@ def user_attribute_remove_from_group(sender, **kwargs):
 		return
 
 	keep_staff = False
-	if 'STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']:
+	if kwargs['user'].is_staff and ('STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']):
 		if sender.name in settings.OKTA_CLIENT['API']['STAFF_USER_GROUPS']:
 			current_groups = [user_group.name for user_group in kwargs['user'].groups.all()]
 			if frozenset(settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']) & frozenset(current_groups):
@@ -61,7 +61,7 @@ def user_attribute_remove_from_group(sender, **kwargs):
 				kwargs['user'].is_staff = False
 				kwargs['user'].save(update_fields=['is_staff'])
 
-	if 'SUPER_USER_GROUPS' in settings.OKTA_CLIENT:
+	if (kwargs['user'].is_superuser or kwargs['user'].is_staff) and ('SUPER_USER_GROUPS' in settings.OKTA_CLIENT):
 		if sender.name in settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']:
 			current_groups = [user_group.name for user_group in kwargs['user'].groups.all()]
 			if not (frozenset(settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']) & frozenset(current_groups)):

@@ -3,9 +3,12 @@
 This module defines the custom user manager for the Okta user model.
 """
 
+from datetime import timedelta as TimeDelta
 from logging import getLogger
 
+from django.conf import settings
 from django.contrib.auth.base_user import BaseUserManager
+from django.utils.timezone import now
 
 from okta.models.user import User as OktaAPIUser
 
@@ -23,6 +26,17 @@ class OktaUserManager(BaseUserManager):
 
 	use_in_migrations = True
 	_api_client = OktaAPIClient()
+
+	@classmethod
+	def _get_refresh_delta(self):
+		"""Get refresh delta
+		Load the USER_TTL setting and create the equivalent timedelta object.
+		"""
+
+		if hasattr(settings, 'OKTA_CLIENT') and ('API' in settings.OKTA_CLIENT) and ('USER_TTL' in settings.OKTA_CLIENT['API']):
+			return TimeDelta(seconds=settings.OKTA_CLIENT['API']['USER_TTL'])
+		else:
+			return TimeDelta(seconds=0)
 
 	@classmethod
 	def _get_search_term_for_okta(cls, **attributes):
@@ -148,14 +162,14 @@ class OktaUserManager(BaseUserManager):
 		:rtype: tuple
 		"""
 
-		created = False
 		search_term = self._get_search_term_for_okta(**user_details)
-		user = None if search_term is None else self._api_client.get_user(search_term)
-		if user is None:
+		try:
+			user = self.get_user(search_term)
+		except ValueError:
 			user, created = super().get_or_create(**user_details)
 		else:
-			user.update_from_okta_user(user)
-			user.save()
+			created = False
+
 		return user, created
 
 	def get_user(self, user):
@@ -169,27 +183,39 @@ class OktaUserManager(BaseUserManager):
 		:raises ValueError: if the user doesn't exist in Okta or locally
 		"""
 
-		user_param = user
-		if not isinstance(user, self.model) and not isinstance(user, OktaAPIUser):
-			user = self._api_client.get_user(user)
+		user_param, okta_user = user, None
+		if not isinstance(user, self.model):
+			if isinstance(user, OktaAPIUser):
+				okta_user = user
+				try:
+					user = super().get_queryset().get(okta_id=okta_user.id)
+				except self.model.DoesNotExist:
+					user = None
+			else:
+				try:
+					user = super().get_queryset().get(login=user_param)
+				except self.model.DoesNotExist:
+					user = None
 
 		if user is None:
-			try:
-				user = super().get_queryset().get(login=user_param)
-			except self.model.DoesNotExist:
-				user = None
-		elif isinstance(user, OktaAPIUser):
-			try:
-				user = super().get_queryset().get(login=user.profile.login).update_from_okta_user(user)
-			except self.model.DoesNotExist:
-				user = self.model.from_okta_user(user)
-				user.set_unusable_password()
+			if okta_user is None:
+				okta_user = self._api_client.get_user(user_param)
+				if okta_user is None:
+					raise ValueError(f"Couldn't find user anywhere: {user_param}")
+			user = self.model.from_okta_user(okta_user)
+			user.set_unusable_password()
 			user.save()
-
-		if user is None:
-			raise ValueError(f"Couldn't find user anywhere: {user_param}")
-
-		user.update_groups_from_okta()
+			user.update_groups_from_okta()
+		elif okta_user is None:
+			if (user.last_refresh_timestamp is None) or (now() > (user.last_refresh_timestamp + self._get_refresh_delta())):
+				okta_user = self._api_client.get_user(user_param)
+				if okta_user is not None:
+					user.update_from_okta_user(okta_user)
+					user.save()
+					user.update_groups_from_okta()
+		else:
+			user.update_from_okta_user(okta_user)
+			user.save()
 
 		return user
 

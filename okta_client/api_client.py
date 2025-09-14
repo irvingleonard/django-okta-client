@@ -36,8 +36,8 @@ class OktaAPIClient:
 
 		if name == 'okta_api_client':
 			client_config = {'orgUrl': settings.OKTA_CLIENT['API']['ORG_URL']} | self.okta_api_credentials
-			if 'SSL_CONTEXT' in settings.OKTA_CLIENT:
-				client_config['sslContext'] = settings.OKTA_CLIENT['SSL_CONTEXT']
+			if 'SSL_CONTEXT' in settings.OKTA_CLIENT['API']:
+				client_config['sslContext'] = settings.OKTA_CLIENT['API']['SSL_CONTEXT']
 			value = OktaClient(client_config | self.STATIC_CONFIG)
 		elif name == 'okta_api_credentials':
 			if ('API_CLIENT_ID' in settings.OKTA_CLIENT['API']) and ('API_PRIVATE_KEY' in settings.OKTA_CLIENT['API']):
@@ -47,7 +47,7 @@ class OktaAPIClient:
 					'privateKey'		: settings.OKTA_CLIENT['API']['API_PRIVATE_KEY'],
 					'scopes'			: settings.OKTA_CLIENT['API'].get('API_SCOPES', None),
 				}
-			elif 'API_TOKEN' in settings.OKTA_CLIENT:
+			elif 'API_TOKEN' in settings.OKTA_CLIENT['API']:
 				value = {'token': settings.OKTA_CLIENT['API']['API_TOKEN']}
 			else:
 				raise RuntimeError('Missing auth settings for Okta client')

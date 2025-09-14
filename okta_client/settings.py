@@ -21,6 +21,7 @@ EXPECTED_VALUES_FROM_ENV = {
 		'OKTA_CLIENT_ORG_URL',
 		'OKTA_CLIENT_PRIVATE_KEY',
 		'OKTA_CLIENT_TOKEN',
+		'OKTA_CLIENT_USER_TTL',
 		'OKTA_DJANGO_STAFF_USER_GROUPS',
 		'OKTA_DJANGO_SUPER_USER_GROUPS',
 		'OKTA_SAML_ASSERTION_DOMAIN_URL',
@@ -29,7 +30,8 @@ EXPECTED_VALUES_FROM_ENV = {
 }
 
 IMPLICIT_ENVIRONMENTAL_SETTINGS = {
-  'OKTA_CLIENT_LOCAL_PATH' : DEFAULT_LOCAL_PATH,
+  'OKTA_CLIENT_LOCAL_PATH': DEFAULT_LOCAL_PATH,
+  'OKTA_CLIENT_USER_TTL': '300',
 }
 
 def normalized_settings(**django_settings):
@@ -85,6 +87,8 @@ def normalized_settings(**django_settings):
 			okta_client['API']['SUPER_USER_GROUPS'] = [group.strip() for group in django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_DJANGO_SUPER_USER_GROUPS'].split(',')]
 		if 'OKTA_DJANGO_STAFF_USER_GROUPS' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
 			okta_client['API']['STAFF_USER_GROUPS'] = [group.strip() for group in django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_DJANGO_STAFF_USER_GROUPS'].split(',')]
+		if 'OKTA_CLIENT_USER_TTL' in django_settings['ENVIRONMENTAL_SETTINGS_KEYS']:
+			okta_client['API']['USER_TTL'] = int(django_settings['ENVIRONMENTAL_SETTINGS']['OKTA_CLIENT_USER_TTL'])
 
 	if okta_client:
 		django_settings['OKTA_CLIENT'] = okta_client

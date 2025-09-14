@@ -77,11 +77,12 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 	is_staff = BooleanField(default=False, verbose_name=_("staff status"), help_text=_("Designates whether the user can log into the admin site."))
 	date_joined = DateTimeField(auto_now_add=True, verbose_name=_("date joined"), help_text=_('The timestamp when the local account was created'))
 
-	okta_id = CharField(blank=True, max_length=50, verbose_name=_('id'), help_text=_("Okta internal ID for the user."))
+	okta_id = CharField(null=True, blank=True, unique=True, max_length=50, verbose_name=_('id'), help_text=_("Okta internal ID for the user."))
 	okta_activated = DateTimeField(null=True, blank=True, verbose_name=_("activated"), help_text=_("Timestamp of the account activation."))
 	okta_created = DateTimeField(null=True, blank=True, verbose_name=_("created"), help_text=_("Timestamp of the account creation."))
 	okta_status = CharField(blank=True, max_length=30, choices=OktaStatuses, verbose_name=_('status'), help_text=_("Status of the Okta account."))
 	okta_status_changed = DateTimeField(null=True, blank=True, verbose_name=_("status changed"), help_text=_('Timestamp of the last update of the "status" attribute.'))
+	last_refresh_timestamp = DateTimeField(null=True, blank=True, auto_now_add=True, verbose_name=_("Last refresh timestamp"), help_text=_('The last time the user was updated (refreshed) from Okta'))
 
 	objects = OktaUserManager()
 	
