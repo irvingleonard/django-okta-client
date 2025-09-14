@@ -2,6 +2,7 @@
 Here are some utility pieces.
 """
 
+from datetime import timedelta as TimeDelta
 from logging import getLogger
 
 from django.conf import settings
@@ -87,7 +88,18 @@ class OktaAPIClient:
 				result.extend(partial)
 
 		return result
-
+	
+	@staticmethod
+	def get_refresh_delta():
+		"""Get refresh delta
+		Load the USER_TTL setting and create the equivalent timedelta object.
+		"""
+		
+		if hasattr(settings, 'OKTA_CLIENT') and ('API' in settings.OKTA_CLIENT) and ('USER_TTL' in settings.OKTA_CLIENT['API']):
+			return TimeDelta(seconds=settings.OKTA_CLIENT['API']['USER_TTL'])
+		else:
+			return TimeDelta(seconds=0)
+	
 	def get_user(self, *args, **kwargs):
 		"""Get user
 		Attempt to call the "get_user" endpoint and return the results.

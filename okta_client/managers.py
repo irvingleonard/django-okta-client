@@ -27,8 +27,8 @@ class OktaUserManager(BaseUserManager):
 	use_in_migrations = True
 	_api_client = OktaAPIClient()
 
-	@classmethod
-	def _get_refresh_delta(self):
+	@staticmethod
+	def _get_refresh_delta():
 		"""Get refresh delta
 		Load the USER_TTL setting and create the equivalent timedelta object.
 		"""
@@ -53,7 +53,22 @@ class OktaUserManager(BaseUserManager):
 				return attributes[field_]
 
 		return None
-
+	
+	def create_from_okta_user(self, okta_user):
+		"""Create form Okta API User
+		Creates a model object from an Okta API User.
+		
+		:param okta_user: the Okta User to base the model on
+		:type okta_user: OktaAPIUser
+		:return: the model object
+		:rtype: self.model
+		"""
+		
+		user = self.model.from_okta_user(okta_user)
+		user.set_unusable_password()
+		user.save()
+		return user
+	
 	def create_user(self, login, email, firstName, lastName, password=None, groups=None, **other_fields):
 		"""Create a local user
 		Create and save a user with the provided details.
@@ -132,7 +147,7 @@ class OktaUserManager(BaseUserManager):
 
 		return user
 
-	def get(self, **search_attributes):
+	def no_get(self, **search_attributes):
 		"""Override for default get
 		Tries to sync the associated user before calling the underlying "get".
 
@@ -152,7 +167,7 @@ class OktaUserManager(BaseUserManager):
 
 		return super().get_queryset().get(**search_attributes)
 
-	def get_or_create(self, **user_details):
+	def no_get_or_create(self, **user_details):
 		"""Override of base method
 		A hybrid method taking into account remote Okta users. Users will only be "created" if done locally, not if they already exist in Okta.
 
@@ -172,7 +187,7 @@ class OktaUserManager(BaseUserManager):
 
 		return user, created
 
-	def get_user(self, user):
+	def no_get_user(self, user):
 		"""Get user
 		Updates from Okta (if applicable) and retrieves a UserModel user. Local users won't be updated. If the user doesn't match an Okta user or a local user a ValueError will be raised.
 
@@ -219,7 +234,7 @@ class OktaUserManager(BaseUserManager):
 
 		return user
 
-	def update_all(self):
+	def no_update_all(self):
 		"""Update all
 		Leverages the side effects of self.get_user to update all the users from the Okta directory.
 
