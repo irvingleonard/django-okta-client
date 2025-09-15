@@ -188,7 +188,10 @@ class OktaUserManager(BaseUserManager):
 		LOGGER.debug('Updating %d users from Okta', len(okta_users))
 		for okta_user in iter_class(okta_users):
 			user, created = self.get_or_create(login=okta_user.profile.login)
-			user.update_from_okta_user(okta_user, save_model=True)
+			try:
+				user.update_from_okta_user(okta_user, save_model=True)
+			except Exception:
+				LOGGER.exception('User Okta update failed: %s', user)
 
 		okta_groups = {}
 		if include_groups:
