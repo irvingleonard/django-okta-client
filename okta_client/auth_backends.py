@@ -6,12 +6,12 @@ Okta authentication backend for Django.
 from logging import getLogger
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.backends import ModelBackend, RemoteUserBackend
-from django.utils.timezone import now
+from django.contrib.auth.backends import RemoteUserBackend
 
 from rest_framework.authentication import TokenAuthentication as DjangoRESTTokenAuthentication
 
 from .api_client import OktaAPIClient
+from .groups import set_user_groups
 
 LOGGER = getLogger(__name__)
 UserModel = get_user_model()
@@ -23,53 +23,79 @@ class OktaSAMLBackend(RemoteUserBackend):
 	"""
 	
 	create_unknown_user = True
-	
-	_api_client = OktaAPIClient()
-	
-	def authenticate(self, request, remote_user):
+
+	def __getattr__(self, name):
+		"""Lazy instantiation
+		It provides a mechanism for lazy instantiation of the Okta API client and some other things.
+
+		:param name: The name of the attribute being accessed.
+		:type name: str
+		:returns: the attribute value
 		"""
-		
-		"""
-		
-		user = super().authenticate(request, remote_user)
-		
-		if user is None:
-			okta_user = self._api_client.get_user(remote_user)
-			if okta_user is not None:
-				return None
-			user = UserModel.objects.create_from_okta_user(okta_user)
+
+		if name == '_api_client':
+			value = OktaAPIClient()
+		elif name == '_api_endpoint_available_users':
+			value = self._api_client.ping_users_endpoint()
 		else:
-			if (user.last_refresh_timestamp is None) or (now() > (user.last_refresh_timestamp + self._api_client.get_refresh_delta())):
-				okta_user = self._api_client.get_user(remote_user)
-				if okta_user is not None:
-					user.update_from_okta_user(okta_user)
-					user.save()
-		
+			return getattr(super(), name)
+		self.__setattr__(name, value)
+		return value
+
+	def authenticate(self, request, login, **saml_attributes):
+		"""Authenticate user
+		Use the provided login to create a local account. It will try to update the attributes and group membership from Okta if the API client is configured. It will apply the SAML attributes if present. Since this is part of the SAML authentication, it will never return None, it will always create the local user matching the provided "login", since "create_unknown_user" is set to True.
+
+		:param request: the request object, unused so far
+		:type request: DjangoHTTPRequest
+		:param login: the user login to "authenticate"
+		:type login: str
+		:param saml_attributes: the SAML attributes, if any
+		:type saml_attributes: dict
+		:return: the authenticated user
+		:rtype: UserModel
+		"""
+
+		user = super().authenticate(request, login)
+		if saml_attributes:
+			groups = saml_attributes.pop('groups', [])
+			LOGGER.debug('Updating user with SAML attributes: %s <- %s', login, saml_attributes)
+			user.update(saml_attributes)
+			user.save()
+			if groups:
+				set_user_groups(user, groups)
+		return user
+
+	def configure_user(self, request, user, created=True):
+		"""Configure user
+		User attributes and group membership update from Okta.
+
+		:param request: the request object, not used so far
+		:type request: DjangoHTTPRequest
+		:param user: the user to configure
+		:type user: UserModel
+		:param created: if the "authenticate" method created the local record
+		:type created: bool
+		:return: the configured user
+		:rtype: UserModel
+		"""
+
+		if self._api_endpoint_available_users and user.is_outdated:
+			user.update_from_okta()
+			user.set_user_groups_from_okta()
 		return user
 		
-		
-	def user_can_authenticate(self):
+	def user_can_authenticate(self, remote_user):
 		"""Returns whether the user is allowed to authenticate
 		This backend should be used with SAML, which is a federated authentication scheme, so there shouldn't be a local permission check for authentication.
-		
+
+		:param remote_user: the user to check for
+		:type remote_user: str
 		:return: always True
 		:rtype: bool
 		"""
-		
+
 		return True
-	
-	def authenticate_old(self, request=None, username=None, login=None, **user_details):
-		"""Noop check
-		Retrieve the user details using the Okta API, check for admin access, and update group membership (creating groups if needed)
-		"""
-
-		if login is None:
-			return None
-
-		try:
-			return UserModel.objects.get_user(login)
-		except ValueError:
-			return None
 
 
 class DjangoRESTBearerTokenAuthentication(DjangoRESTTokenAuthentication):
