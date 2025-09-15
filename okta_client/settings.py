@@ -95,9 +95,9 @@ def normalized_settings(**django_settings):
 
 	if 'SAML' in okta_client:
 		if 'AUTHENTICATION_BACKENDS' not in django_settings:
-			django_settings['AUTHENTICATION_BACKENDS'] = ['okta_client.auth_backends.OktaBackend', 'django.contrib.auth.backends.ModelBackend']
-		elif 'okta_client.auth_backends.OktaBackend' not in django_settings['AUTHENTICATION_BACKENDS']:
-			django_settings['AUTHENTICATION_BACKENDS'] = ['okta_client.auth_backends.OktaBackend'] + django_settings['AUTHENTICATION_BACKENDS']
+			django_settings['AUTHENTICATION_BACKENDS'] = ['okta_client.auth_backends.OktaSAMLBackend', 'django.contrib.auth.backends.ModelBackend']
+		elif 'okta_client.auth_backends.OktaSAMLBackend' not in django_settings['AUTHENTICATION_BACKENDS']:
+			django_settings['AUTHENTICATION_BACKENDS'] = ['okta_client.auth_backends.OktaSAMLBackend'] + django_settings['AUTHENTICATION_BACKENDS']
 
 	if 'REST_FRAMEWORK' not in django_settings:
 		django_settings['REST_FRAMEWORK'] = {

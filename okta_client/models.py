@@ -9,10 +9,11 @@ from logging import getLogger
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import RegexValidator
 from django.db.models import BooleanField, CharField, DateTimeField, EmailField, TextChoices, URLField, fields
+from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
 from .api_client import OktaAPIClient
-from .groups import group_add, group_remove
+from .groups import set_user_groups
 from .managers import OktaUserManager
 
 LOGGER = getLogger(__name__)
@@ -33,7 +34,7 @@ class OktaStatuses(TextChoices):
 	PASSWORD_EXPIRED = 'PASSWORD_EXPIRED', _('Password Expired')
 	LOCKED_OUT = 'LOCKED_OUT', _('Locked Out')
 	SUSPENDED = 'SUSPENDED', _('Suspended')
-	DEACTIVATED = 'DEACTIVATED', _('Deactivated')
+	DEPROVISIONED = 'DEPROVISIONED', _('Deprovisioned')
 
 
 class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
@@ -82,7 +83,7 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 	okta_created = DateTimeField(null=True, blank=True, verbose_name=_("created"), help_text=_("Timestamp of the account creation."))
 	okta_status = CharField(blank=True, max_length=30, choices=OktaStatuses, verbose_name=_('status'), help_text=_("Status of the Okta account."))
 	okta_status_changed = DateTimeField(null=True, blank=True, verbose_name=_("status changed"), help_text=_('Timestamp of the last update of the "status" attribute.'))
-	last_refresh_timestamp = DateTimeField(null=True, blank=True, auto_now_add=True, verbose_name=_("Last refresh timestamp"), help_text=_('The last time the user was updated (refreshed) from Okta'))
+	last_refresh_timestamp = DateTimeField(null=True, blank=True, verbose_name=_("Last refresh timestamp"), help_text=_('The last time the user was updated (refreshed) from Okta'))
 
 	objects = OktaUserManager()
 	
@@ -90,13 +91,27 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 	USERNAME_FIELD = 'login'
 	REQUIRED_FIELDS = ['email', 'firstName', 'lastName']
 
-	_api_client = OktaAPIClient()
-
 	class Meta:
 		verbose_name = _('okta user')
 		verbose_name_plural = _('okta users')
 		abstract = True
-	
+
+	def __getattr__(self, name):
+		"""Lazy instantiation
+		It provides a mechanism for lazy instantiation of the Okta API client.
+
+		:param name: The name of the attribute being accessed.
+		:type name: str
+		:returns: the attribute value
+		"""
+
+		if name == '_api_client':
+			value = OktaAPIClient()
+		else:
+			return getattr(super(), name)
+		self.__setattr__(name, value)
+		return value
+
 	def __str__(self):
 		"""String representation of the Okta user.
 
@@ -175,13 +190,31 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		else:
 			return self.firstName
 
+	@property
+	def is_outdated(self):
+		"""Are user attributes too old?
+		Uses the "last_refresh_timestamp" and the API Client's "get_refresh_delta" to figure out if the attributes need to be updated.
+		"""
+
+		return (self.last_refresh_timestamp is None) or (now() > (self.last_refresh_timestamp + self._api_client.get_refresh_delta()))
+
+	def set_groups_from_okta(self, force_empty=False):
+		"""Set groups from Okta
+		Queries Okta for the group membership of the user and sets the local groups accordingly. Assumes that an empty list from "list_user_groups" was a failed query.
+
+		:param force_empty: forces the update with an empty list if present (remove all groups)
+		:type force_empty: bool
+		"""
+
+		okta_groups = self._api_client.list_user_groups(self.login)
+		if okta_groups or force_empty:
+			set_user_groups(self, [group.profile.name for group in okta_groups])
+
 	def update(self, **updated_values):
 		"""Updates user attributes from a dictionary of values.
 		This method iterates through the provided keyword arguments and updates the corresponding fields on the user model instance. It only updates fields that exist on the model; any unknown fields will be ignored and a warning will be logged.
 
 		:param updated_values: Keyword arguments where keys are model field names and values are the new values for those fields.
-		:return: The updated user instance.
-		:rtype: self
 		"""
 		
 		local_fields = [field.name for field in self._meta.fields]
@@ -190,47 +223,36 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 				setattr(self, key, value)
 			else:
 				LOGGER.warning('Dropping unknown field "%s" in object: %s', key, type(self))
-		return self
 
-	def update_from_okta_user(self, okta_user):
+	def update_from_okta(self, force_update=False, save_model=True):
+		"""Update attributes from Okta
+		Queries the Okta API for the user's details and updates the local attributes
+		"""
+
+		if self.is_outdated or force_update:
+			okta_user = self._api_client.get_user(self.login)
+			if okta_user is None:
+				LOGGER.debug('Local user not found in Okta: %s', self.login)
+			else:
+				LOGGER.debug('Retrieving info from Okta to update user: %s', self.login)
+				self.update_from_okta_user(okta_user)
+				self.last_refresh_timestamp = now()
+				if save_model:
+					self.save()
+		else:
+			LOGGER.debug('User local attributes are current enough, skipping update: %s', self.login)
+
+	def update_from_okta_user(self, okta_user, save_model=False):
 		"""Updates the user's attributes from an Okta user object.
 		This method extracts relevant attributes from the provided `okta_user` using `_attributes_from_okta_user` and then updates the corresponding fields on the current user instance.
 
 		:param okta_user: An object representing the Okta user.
-		:type okta_user: object
-		:return: The updated user instance.
-		:rtype: self
+		:type okta_user: OktaAPIUser
 		"""
 
-		for field_name, field_value in self._attributes_from_okta_user(okta_user).items():
-			setattr(self, field_name, field_value)
-		return self
-
-	def update_groups(self, group_names):
-		"""Update group membership for user
-		Bulk update the group membership based on the provided list.
-		"""
-
-		final_group_names = frozenset(group_names)
-		initial_group_names = frozenset([user_group.name for user_group in self.groups.all()])
-
-		joining_groups = final_group_names - initial_group_names
-		if joining_groups:
-			for adding_to_group in joining_groups:
-				group_add(adding_to_group, self)
-
-		leaving_groups = initial_group_names - final_group_names
-		if leaving_groups:
-			for removing_from_group in leaving_groups:
-				group_remove(removing_from_group, self)
-
-	def update_groups_from_okta(self):
-		"""Update groups from Okta
-		Queries Okta for the group membership of the user and updates the local groups accordingly.
-		"""
-
-		return self.update_groups([group.profile.name for group in self._api_client.list_user_groups(self.okta_id)])
-
+		self.update(**self._attributes_from_okta_user(okta_user))
+		if save_model:
+			self.save()
 
 
 class OktaUser(AbstractOktaUser):
