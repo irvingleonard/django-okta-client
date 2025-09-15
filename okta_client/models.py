@@ -206,7 +206,9 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		:type force_empty: bool
 		"""
 
-		okta_groups = self._api_client.list_user_groups(self.login)
+		if not self.okta_id:
+			return
+		okta_groups = self._api_client.list_user_groups(self.okta_id)
 		if okta_groups or force_empty:
 			set_user_groups(self, [group.profile.name for group in okta_groups])
 
@@ -230,7 +232,12 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		"""
 
 		if self.is_outdated or force_update:
-			okta_user = self._api_client.get_user(self.login)
+			if self.okta_id:
+				okta_user = self._api_client.get_user(self.okta_id)
+			else:
+				okta_user = self._api_client.get_user(self.login)
+				if (okta_user is not None) and (self.login != okta_user.profile.login):
+					okta_user = None
 			if okta_user is None:
 				LOGGER.debug('Local user not found in Okta: %s', self.login)
 			else:
