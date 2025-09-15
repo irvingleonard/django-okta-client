@@ -30,8 +30,9 @@ dependencies = [
 	'django',
 	'djangorestframework',
     'normalized-django-settings',
-	'pysaml2',
 	'okta',
+	'pysaml2',
+	'tqdm',
 ]
 
 [project.optional-dependencies]
