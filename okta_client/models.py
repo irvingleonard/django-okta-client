@@ -137,7 +137,7 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 				if (okta_attr is None) or (isinstance(okta_attr, str) and not len(okta_attr)):
 					continue
 				if isinstance(field, fields.DateTimeField):
-					okta_attr = DateTime.fromisoformat(okta_attr.rstrip('Z'))
+					okta_attr = DateTime.fromisoformat(okta_attr)
 				attributes[field.name] = okta_attr
 
 		attributes['okta_id'] = okta_user.id
