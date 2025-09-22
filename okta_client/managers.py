@@ -8,6 +8,7 @@ from logging import getLogger, INFO
 from django.contrib.auth.base_user import BaseUserManager
 from django.utils.timezone import now
 
+from asgiref.sync import async_to_sync
 from okta.models.user import User as OktaAPIUser
 from tqdm import tqdm as TQDM
 
@@ -196,11 +197,11 @@ class OktaUserManager(BaseUserManager):
 		okta_groups = {}
 		if include_groups:
 			LOGGER.debug('Retrieving all Okta groups')
-			okta_groups = {group.id: group.profile.name for group in self._api_client.list_groups()}
+			okta_groups = {group.id: group.profile.name for group in async_to_sync(self._api_client)('list_groups')}
 
 			LOGGER.debug('Updating %d groups from Okta', len(okta_groups))
 			for okta_group_id, okta_group_name in iter_class(okta_groups.items()):
-				okta_members = [okta_user.profile.login for okta_user in self._api_client.list_group_users(okta_group_id)]
+				okta_members = [okta_user.profile.login for okta_user in async_to_sync(self._api_client)('list_group_users', okta_group_id)]
 				try:
 					group_members = [self.get(login=okta_member) for okta_member in okta_members]
 				except self.model.DoesNotExist:

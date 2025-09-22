@@ -12,7 +12,10 @@ from django.db.models import BooleanField, CharField, DateTimeField, EmailField,
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
-from .api_client import OktaAPIClient
+from asgiref.sync import async_to_sync
+from okta.exceptions.exceptions import OktaAPIException
+
+from .api_client import OktaAPIClient, ERROR_CODE_MAP
 from .groups import set_user_groups
 from .managers import OktaUserManager
 
@@ -208,7 +211,7 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 
 		if not self.okta_id:
 			return
-		okta_groups = self._api_client.list_user_groups(self.okta_id)
+		okta_groups = async_to_sync(self._api_client)('list_user_groups', self.okta_id)
 		if okta_groups or force_empty:
 			set_user_groups(self, [group.profile.name for group in okta_groups])
 
@@ -231,13 +234,24 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 		Queries the Okta API for the user's details and updates the local attributes
 		"""
 
+		if not self._api_client.ping_users_endpoint():
+			LOGGER.debug("Okta user endpoint not available; skipping user update: %s", self.login)
+			return
+
 		if self.is_outdated or force_update:
 			if self.okta_id:
-				okta_user = self._api_client.get_user(self.okta_id)
+				okta_user = async_to_sync(self._api_client)('get_user', self.okta_id)
 			else:
-				okta_user = self._api_client.get_user(self.login)
-				if (okta_user is not None) and (self.login != okta_user.profile.login):
-					okta_user = None
+				try:
+					okta_user = async_to_sync(self._api_client)('get_user', self.login)
+				except OktaAPIException as error_:
+					if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
+						okta_user = None
+					else:
+						raise
+				else:
+					if self.login != okta_user.profile.login:
+						okta_user = None
 			if okta_user is None:
 				LOGGER.debug('Local user not found in Okta: %s', self.login)
 			else:

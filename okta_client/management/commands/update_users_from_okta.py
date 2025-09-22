@@ -41,8 +41,8 @@ class Command(BaseCommand):
 		api_client = OktaAPIClient()
 
 		try:
-			api_client.ping_users_endpoint()
-		except AttributeError:
+			api_client.ping_users_endpoint(required=True)
+		except (AttributeError, KeyError):
 			raise CommandError("The API client doesn't seem to be configured")
 		except OktaAPIException as error_:
 			raise CommandError(f'There seems to be an issue with the Okta configuration; attempting to access the list of users yield: {error_}')
