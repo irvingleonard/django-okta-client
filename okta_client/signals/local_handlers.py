@@ -17,4 +17,4 @@ def update_user_from_okta(request, event):
 	"""
 
 	for target in event['target']:
-		UserModel.objects.get_user(target['id'])
+		UserModel.objects.get_okta_updated(login=target['alternateId'], update_groups=False)
