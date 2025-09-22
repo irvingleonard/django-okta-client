@@ -10,7 +10,6 @@ from django.core.cache import cache
 
 from asgiref.sync import async_to_sync
 from okta.client import Client as OktaClient
-from okta.exceptions.exceptions import OktaAPIException
 
 ERROR_CODE_MAP = {
 	'USER_NOT_FOUND' : 'E0000007',
@@ -57,7 +56,7 @@ class OktaAPIClient:
 		self.__setattr__(name, value)
 		return value
 
-	def __call__(self, method_name, *args, retrieve_all_pages=True, **kwargs):
+	async def __call__(self, method_name, *args, retrieve_all_pages=True, **kwargs):
 		"""Okta API request
 		Makes a request to the Okta API using the configured Okta client.
 
@@ -68,7 +67,7 @@ class OktaAPIClient:
 		:return: The result of the Okta API call.
 		"""
 
-		result = async_to_sync(getattr(self.okta_api_client, method_name), )(*args, **kwargs)
+		result = await getattr(self.okta_api_client, method_name)(*args, **kwargs)
 
 		if len(result) == 3:
 			result, response, err = result
@@ -82,7 +81,7 @@ class OktaAPIClient:
 
 		if retrieve_all_pages:
 			while response.has_next():
-				partial, err = async_to_sync(response.next)()
+				partial, err = await response.next()
 				if err is not None:
 					raise RuntimeError(err)
 				result.extend(partial)
@@ -103,90 +102,6 @@ class OktaAPIClient:
 		else:
 			return TimeDelta(seconds=0)
 
-	def get_user(self, *args, **kwargs):
-		"""Get user
-		Attempt to call the "get_user" endpoint and return the results.
-
-		:param args: positional argument parameters, passed as is to the "get_user" call
-		:type args: Any
-		:param kwargs: keyword argument parameters, passed as is to the "get_user" call
-		:type kwargs: Any
-		:return: the matching user or None
-		:rtype: OktaAPIUser|None
-		"""
-
-		try:
-			return self('get_user', *args, **kwargs)
-		except AttributeError:
-			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote user: %s | %s", args, kwargs)
-		except OktaAPIException as error_:
-			if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
-				LOGGER.exception('Unknown error occurred when retrieving Okta user: %s | %s', args, kwargs)
-
-		return None
-
-	def list_group_users(self, groupId, **kwargs):
-		"""Get group members
-		Attempt to call the "list_group_users" endpoint and return the results.
-
-		:param groupId: identifier for the group
-		:type groupId: str
-		:param kwargs: keyword argument parameters, passed as is to the "list_group_users" call
-		:type kwargs: Any
-		:return: the list of members
-		:rtype: list[OktaAPIUser]
-		"""
-
-		try:
-			return self('list_group_users', groupId, **kwargs)
-		except AttributeError:
-			LOGGER.debug("Okta API Client is not available, couldn't retrieve group members: %s | %s", groupId, kwargs)
-		# except OktaAPIException as error_:
-		# 	if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
-		# 		LOGGER.exception('Unknown error occurred when retrieving Okta group members: %s | %s', groupId, kwargs)
-
-		return []
-
-	def list_user_groups(self, userId):
-		"""List user groups
-		Fetches the groups of which the user is a member.
-
-		:param userId: an identifier for the user; anything that "list_user_groups" can use
-		:type userId: str
-		:return: the list of user groups
-		:rtype: list[OktaAPIGroup]
-		"""
-
-		try:
-			return self('list_user_groups', userId)
-		except AttributeError:
-			LOGGER.debug("Okta API Client is not available, couldn't retrieve user's groups: %s", userId)
-		except OktaAPIException as error_:
-			if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
-				LOGGER.exception("Unknown error occurred when retrieving Okta user's groups: %s", userId)
-
-		return []
-
-	def list_groups(self, **kwargs):
-		"""List all groups
-		A subset of groups can be returned that match a supported filter expression or search criteria. Different results are returned depending on specified queries in the request.
-		It will swallow the exceptions and report via logging, for your convenience.
-
-		:param kwargs: any filters or otherwise that will be passed as is to "list_groups"
-		:type kwargs: any
-		:return: a list of groups
-		:rtype: list[OktaAPIGroup]
-		"""
-
-		try:
-			return self('list_groups', query_params=kwargs)
-		except AttributeError:
-			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote groups: %s", kwargs)
-		except OktaAPIException as error_:
-			LOGGER.exception('Unknown error occurred when retrieving Okta groups: %s', kwargs)
-
-		return []
-
 	def list_users(self, include_deprovisioned=False, **kwargs):
 		"""List all users
 		A subset of users can be returned that match a supported filter expression or search criteria. Different results are returned depending on specified queries in the request.
@@ -200,13 +115,9 @@ class OktaAPIClient:
 		:rtype: list[OktaAPIUser]
 		"""
 
-		result = []
-		try:
-			result = self('list_users', query_params=kwargs)
-		except AttributeError:
-			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote users: %s", kwargs)
-		except OktaAPIException as error_:
-			LOGGER.exception('Unknown error occurred when retrieving Okta users: %s', kwargs)
+		self.ping_users_endpoint(required=True)
+
+		result = async_to_sync(self)('list_users', query_params=kwargs)
 
 		if include_deprovisioned:
 			if 'search' in kwargs:
@@ -214,16 +125,11 @@ class OktaAPIClient:
 			else:
 				kwargs['search'] = 'status eq "Deprovisioned"'
 
-			try:
-				result += self('list_users', query_params=kwargs)
-			except AttributeError:
-				LOGGER.debug("Okta API Client is not available, couldn't retrieve remote users: %s", kwargs)
-			except OktaAPIException as error_:
-				LOGGER.exception('Unknown error occurred when retrieving Okta users: %s', kwargs)
+			result += async_to_sync(self)('list_users', query_params=kwargs)
 
 		return result
 
-	def ping_users_endpoint(self):
+	def ping_users_endpoint(self, required=False):
 		"""Ping users endpoint
 		Attempt a query to the users endpoint and report availability. Doesn't handle exceptions, it will let them bubble up.
 
@@ -232,6 +138,9 @@ class OktaAPIClient:
 		"""
 
 		try:
-			return len(self('list_users', retrieve_all_pages=False, query_params={'limit':'1'})) > 0
+			return len(async_to_sync(self)('list_users', retrieve_all_pages=False, query_params={'limit':'1'})) > 0
 		except Exception:
-			return False
+			if required:
+				raise
+			else:
+				return False
