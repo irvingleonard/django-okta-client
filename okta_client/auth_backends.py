@@ -82,7 +82,7 @@ class OktaSAMLBackend(RemoteUserBackend):
 
 		if self._api_endpoint_available_users and user.is_outdated:
 			user.update_from_okta()
-			user.set_user_groups_from_okta()
+			user.set_groups_from_okta()
 		return user
 		
 	def user_can_authenticate(self, remote_user):
