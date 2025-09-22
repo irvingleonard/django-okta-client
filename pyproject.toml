@@ -29,7 +29,7 @@ dependencies = [
 	'asgiref',
 	'django',
 	'djangorestframework',
-    'normalized-django-settings>=1.1.0.dev0',
+    'normalized-django-settings>=1.1.0',
 	'okta',
 	'pysaml2',
 	'tqdm',
@@ -37,7 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-	'simplifiedapp<0.8.0',
+	'simplifiedapp',
 ]
 production=[
 	'gevent',
