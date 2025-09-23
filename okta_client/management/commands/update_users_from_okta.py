@@ -8,6 +8,7 @@ from logging import getLogger
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
+from asgiref.sync import async_to_sync
 from okta.exceptions.exceptions import OktaAPIException
 
 from ...api_client import OktaAPIClient
@@ -65,7 +66,7 @@ class Command(BaseCommand):
 					groups |= frozenset([group.name for group in user.groups.all()])
 			group_count = len(groups)
 		else:
-			success_count, group_count = UserModel.objects.update_all_from_okta(include_deprovisioned=not options['no_deprovisioned'], include_groups=not options['no_groups'], show_progress=True)
+			success_count, group_count = async_to_sync(UserModel.objects.update_all_from_okta)(include_deprovisioned=not options['no_deprovisioned'], include_groups=not options['no_groups'], show_progress=True)
 
 		if failures:
 			self.stdout.write(self.style.ERROR(f"Failed to update {len(failures)} users: {', '.join(failures)}"))
