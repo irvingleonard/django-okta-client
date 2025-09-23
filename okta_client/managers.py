@@ -204,7 +204,7 @@ class OktaUserManager(BaseUserManager):
 			async for okta_group in okta_groups:
 				okta_members = await self._api_client('list_group_users', okta_group.id)
 				try:
-					group_members = [self.get(login=okta_member.profile.login) async for okta_member in okta_members]
+					group_members = [await sync_to_async(self.get)(login=okta_member.profile.login) async for okta_member in okta_members]
 				except self.model.DoesNotExist:
 					LOGGER.error("Missing members prevented the update of group: %s <- %s", okta_group.profile.name, okta_members)
 				else:
