@@ -65,8 +65,8 @@ class OktaSAMLBackend(RemoteUserBackend):
 				set_user_groups(user, groups)
 		return user
 
-	async def aconfigure_user(self, request, user, created=True):
-		"""Asynchronously configure the user
+	def configure_user(self, request, user, created=True):
+		"""Configure the user
 		User attributes and group membership are updated from Okta. It will only do so if the Users API endpoint is available and the user is outdated.
 
 		:param request: the request object, not used so far
@@ -79,26 +79,10 @@ class OktaSAMLBackend(RemoteUserBackend):
 		:rtype: UserModel
 		"""
 
-		if user.is_outdated and await self._api_client.ping_users_endpoint():
-			await user.update_from_okta()
-			await user.set_groups_from_okta()
+		if user.is_outdated and async_to_sync(self._api_client.ping_users_endpoint)():
+			async_to_sync(user.update_from_okta)()
+			async_to_sync(user.set_groups_from_okta)()
 		return user
-
-	def configure_user(self, request, user, created=True):
-		"""Configure the user
-		Just an adapter to the asynchronous version of this method.
-
-		:param request: the request object, not used so far
-		:type request: DjangoHTTPRequest
-		:param user: the user to configure
-		:type user: UserModel
-		:param created: if the "authenticate" method created the local record
-		:type created: bool
-		:return: the configured user
-		:rtype: UserModel
-		"""
-
-		return async_to_sync(self.aconfigure_user)(request=request, user=user, created=created)
 
 	def user_can_authenticate(self, remote_user):
 		"""Returns whether the user is allowed to authenticate
