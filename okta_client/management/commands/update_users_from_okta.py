@@ -42,7 +42,7 @@ class Command(BaseCommand):
 		api_client = OktaAPIClient()
 
 		try:
-			api_client.ping_users_endpoint(required=True)
+			async_to_sync(api_client.ping_users_endpoint)(required=True)
 		except (AttributeError, KeyError):
 			raise CommandError("The API client doesn't seem to be configured")
 		except OktaAPIException as error_:
@@ -59,10 +59,10 @@ class Command(BaseCommand):
 				except UserModel.DoesNotExist:
 					failures.append(user)
 					continue
-				user.update_from_okta(force_update=True)
+				async_to_sync(user.update_from_okta)(force_update=True)
 				success_count += 1
 				if not options['no_groups']:
-					user.set_groups_from_okta()
+					async_to_sync(user.set_groups_from_okta)()
 					groups |= frozenset([group.name for group in user.groups.all()])
 			group_count = len(groups)
 		else:
