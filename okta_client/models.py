@@ -259,7 +259,7 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 				await sync_to_async(self.update_from_okta_user)(okta_user, save_model=False)
 				self.last_refresh_timestamp = now()
 				if save_model:
-					await self.asave()
+					await sync_to_async(self.save)()
 		else:
 			LOGGER.debug('User local attributes are current enough, skipping update: %s', self.login)
 
