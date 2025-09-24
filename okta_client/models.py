@@ -12,7 +12,10 @@ from django.db.models import BooleanField, CharField, DateTimeField, EmailField,
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 
-from .api_client import OktaAPIClient
+from asgiref.sync import sync_to_async
+from okta.exceptions.exceptions import OktaAPIException
+
+from .api_client import OktaAPIClient, ERROR_CODE_MAP
 from .groups import set_user_groups
 from .managers import OktaUserManager
 
@@ -198,7 +201,7 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 
 		return (self.last_refresh_timestamp is None) or (now() > (self.last_refresh_timestamp + self._api_client.get_refresh_delta()))
 
-	def set_groups_from_okta(self, force_empty=False):
+	async def set_groups_from_okta(self, force_empty=False):
 		"""Set groups from Okta
 		Queries Okta for the group membership of the user and sets the local groups accordingly. Assumes that an empty list from "list_user_groups" was a failed query.
 
@@ -208,9 +211,9 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 
 		if not self.okta_id:
 			return
-		okta_groups = self._api_client.list_user_groups(self.okta_id)
+		okta_groups = await self._api_client('list_user_groups', self.okta_id)
 		if okta_groups or force_empty:
-			set_user_groups(self, [group.profile.name for group in okta_groups])
+			await sync_to_async(set_user_groups)(self, [group.profile.name async for group in okta_groups])
 
 	def update(self, **updated_values):
 		"""Updates user attributes from a dictionary of values.
@@ -226,26 +229,37 @@ class AbstractOktaUser(AbstractBaseUser, PermissionsMixin):
 			else:
 				LOGGER.warning('Dropping unknown field "%s" in object: %s', key, type(self))
 
-	def update_from_okta(self, force_update=False, save_model=True):
+	async def update_from_okta(self, force_update=False, save_model=True):
 		"""Update attributes from Okta
 		Queries the Okta API for the user's details and updates the local attributes
 		"""
 
+		if not await self._api_client.ping_users_endpoint():
+			LOGGER.debug("Okta user endpoint not available; skipping user update: %s", self.login)
+			return
+
 		if self.is_outdated or force_update:
 			if self.okta_id:
-				okta_user = self._api_client.get_user(self.okta_id)
+				okta_user = await self._api_client('get_user', self.okta_id)
 			else:
-				okta_user = self._api_client.get_user(self.login)
-				if (okta_user is not None) and (self.login != okta_user.profile.login):
-					okta_user = None
+				try:
+					okta_user = await self._api_client('get_user', self.login)
+				except OktaAPIException as error_:
+					if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
+						okta_user = None
+					else:
+						raise
+				else:
+					if self.login != okta_user.profile.login:
+						okta_user = None
 			if okta_user is None:
 				LOGGER.debug('Local user not found in Okta: %s', self.login)
 			else:
 				LOGGER.debug('Retrieving info from Okta to update user: %s', self.login)
-				self.update_from_okta_user(okta_user)
+				await sync_to_async(self.update_from_okta_user)(okta_user, save_model=False)
 				self.last_refresh_timestamp = now()
 				if save_model:
-					self.save()
+					await self.asave()
 		else:
 			LOGGER.debug('User local attributes are current enough, skipping update: %s', self.login)
 
