@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.urls import reverse
 
+from asgiref.sync import sync_to_async
 from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT
 from saml2.client import Saml2Client
 from saml2.config import SPConfig as SPConfig_
@@ -156,7 +157,7 @@ class OktaEventHookMixin:
 
 		return {'verification': request.headers.get('x-okta-verification-challenge', '')}
 
-	def handle_events(self, request):
+	async def handle_events(self, request):
 		"""Handles incoming Okta event hook notifications.
 		This method parses the JSON payload from the request body, which represents an Okta event hook. It then dispatches this event to registered signal handlers via the `okta_event_hook` signal. It logs the outcome of each handler's execution, noting errors, unexpected return values, or successful completion. Okta does not expect a response body for event hooks, so any return values from handlers are logged as warnings and discarded.
 
@@ -165,7 +166,7 @@ class OktaEventHookMixin:
 		:return: None
 		"""
 
-		event_hook = json_loads(request.body)
+		event_hook = await sync_to_async(json_loads)(request.body)
 
 		signals_ = {okta_event_hook : {'event_hook': event_hook}}
 		results = []
@@ -183,16 +184,16 @@ class OktaEventHookMixin:
 				if event['eventType'] in self.LOCAL_EVENT_HANDLERS:
 					local_handler = self.LOCAL_EVENT_HANDLERS[event['eventType']]
 					try:
-						local_result = local_handler(request=request, event=event)
+						local_result = await local_handler(request=request, event=event)
 					except Exception as error_:
 						results.append((local_handler, error_))
 					else:
 						results.append((local_handler, local_result))
 
 		for signal_, params in signals_.items():
-			results += signal_.send_robust(self.__class__, request=request, **params)
+			results += await signal_.asend_robust(self.__class__, request=request, **params)
 
-		report_signal_results(results, 'Okta event hook')
+		# await sync_to_async(report_signal_results)(results, 'Okta event hook')
 
 
 class SPConfig:

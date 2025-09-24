@@ -8,12 +8,13 @@ from logging import getLogger, INFO
 from django.contrib.auth.base_user import BaseUserManager
 from django.utils.timezone import now
 
-from asgiref.sync import async_to_sync
+from asgiref.sync import async_to_sync, sync_to_async
+from okta.exceptions.exceptions import OktaAPIException
 from okta.models.user import User as OktaAPIUser
 from tqdm import tqdm as TQDM
 
 from .api_client import OktaAPIClient
-from .groups import set_group_members
+from .groups import set_group_members, set_user_groups
 
 LOGGER = getLogger(__name__)
 
@@ -85,13 +86,20 @@ class OktaUserManager(BaseUserManager):
 			pass
 
 		user = self.model(login=login, email=email, firstName=firstName, lastName=lastName, **other_fields)
-		user.update_from_okta(save_model=False)
+		try:
+			async_to_sync(user.update_from_okta)(save_model=False)
+		except OktaAPIException as err:
+			LOGGER.debug(f"Couldn't update the user {user.login} from Okta: {err}")
+
 		user.set_unusable_password()
 		user.save()
 
-		user.set_groups_from_okta()
+		try:
+			async_to_sync(user.set_groups_from_okta)()
+		except OktaAPIException as err:
+			LOGGER.debug(f"Couldn't update user {user.login} groups from Okta: {err}")
 		if groups is not None:
-			user.update_groups(groups)
+			set_user_groups(user=user, groups=groups)
 
 		return user
 
@@ -130,18 +138,24 @@ class OktaUserManager(BaseUserManager):
 			raise ValueError('Superuser must have is_superuser=True.')
 
 		user = self.model(login=login, email=email, firstName=firstName, lastName=lastName, **other_fields)
-		user.update_from_okta(save_model=False)
+		try:
+			async_to_sync(user.update_from_okta)(save_model=False)
+		except OktaAPIException as err:
+			LOGGER.debug(f"Couldn't update the user {user.login} from Okta: {err}")
 		if password is not None:
 			user.set_password(password)
 		user.save()
 
-		user.set_groups_from_okta()
+		try:
+			async_to_sync(user.set_groups_from_okta)()
+		except OktaAPIException as err:
+			LOGGER.debug(f"Couldn't update user {user.login} groups from Okta: {err}")
 		if groups is not None:
-			user.update_groups(groups)
+			set_user_groups(user=user, groups=groups)
 
 		return user
 
-	def get_okta_updated(self, login, update_groups=True):
+	async def get_okta_updated(self, login, update_groups=True):
 		"""Get user updated from Okta
 		Returns a local model for a user with the attributes updated from Okta. If the user is not updated from Okta and is not an existing local user, it will return (None, False).
 
@@ -151,17 +165,17 @@ class OktaUserManager(BaseUserManager):
 		:rtype: self.model
 		"""
 
-		user, created = self.get_or_create(login=login)
-		user.update_from_okta()
+		user, created = await sync_to_async(self.get_or_create)(login=login)
+		await user.update_from_okta()
 		if created and not user.okta_id:
-			user.delete()
+			await user.adelete()
 			return None, False
 		if update_groups:
-			user.set_groups_from_okta()
+			await user.set_groups_from_okta()
 
 		return user
 
-	def update_all_from_okta(self, include_deprovisioned=True, include_groups=True, show_progress=False):
+	async def update_all_from_okta(self, include_deprovisioned=True, include_groups=True, show_progress=False):
 		"""Update all users and groups from Okta
 		Queries Okta for the list of users, the list of groups, and the membership for each group. Updates the local users and groups accordingly.
 
@@ -177,36 +191,44 @@ class OktaUserManager(BaseUserManager):
 
 		if show_progress:
 			getLogger('asyncio').setLevel(INFO)
-			iter_class = TQDM
-		else:
-			iter_class = lambda x: x
 
-		if include_deprovisioned:
-			LOGGER.debug('Retrieving all Okta users')
-		else:
-			LOGGER.debug('Retrieving non-deprovisioned Okta users')
-		okta_users = self._api_client.list_users(include_deprovisioned=include_deprovisioned)
-		LOGGER.debug('Updating %d users from Okta', len(okta_users))
-		for okta_user in iter_class(okta_users):
-			user, created = self.get_or_create(login=okta_user.profile.login)
+		okta_users = await self._api_client.list_users(include_deprovisioned=include_deprovisioned)
+		last_total = len(okta_users)
+		pbar_desc = 'Updating all Okta users' if include_deprovisioned else 'Updating non-deprovisioned Okta users'
+		pbar = TQDM(desc=pbar_desc, total=last_total, disable=not show_progress, unit='users', dynamic_ncols=True)
+		async for okta_user in okta_users:
+			user, created = await self.aget_or_create(login=okta_user.profile.login)
 			try:
-				user.update_from_okta_user(okta_user, save_model=True)
+				await sync_to_async(user.update_from_okta_user)(okta_user)
+				await user.asave()
 			except Exception:
 				LOGGER.exception('User Okta update failed: %s', user)
+			else:
+				pbar.update()
+			if last_total != len(okta_users):
+				pbar.total = last_total = len(okta_users)
+				pbar.refresh()
+		pbar.close()
 
 		okta_groups = {}
 		if include_groups:
-			LOGGER.debug('Retrieving all Okta groups')
-			okta_groups = {group.id: group.profile.name for group in async_to_sync(self._api_client)('list_groups')}
+			okta_groups = await self._api_client('list_groups')
 
-			LOGGER.debug('Updating %d groups from Okta', len(okta_groups))
-			for okta_group_id, okta_group_name in iter_class(okta_groups.items()):
-				okta_members = [okta_user.profile.login for okta_user in async_to_sync(self._api_client)('list_group_users', okta_group_id)]
+			last_total = len(okta_groups)
+			pbar = TQDM(desc='Updating groups from Okta', total=last_total, disable=not show_progress, unit='groups', dynamic_ncols=True)
+			async for okta_group in okta_groups:
+				okta_members = await self._api_client('list_group_users', okta_group.id)
 				try:
-					group_members = [self.get(login=okta_member) for okta_member in okta_members]
+					group_members = [await self.aget(login=okta_member.profile.login) async for okta_member in okta_members]
 				except self.model.DoesNotExist:
-					LOGGER.error("Missing members prevented the update of group: %s <- %s", okta_group_name, okta_members)
+					LOGGER.error("Missing members prevented the update of group: %s <- %s", okta_group.profile.name, okta_members)
 				else:
-					set_group_members(okta_group_name, group_members)
+					await sync_to_async(set_group_members)(okta_group.profile.name, group_members)
+				pbar.update()
+				if last_total != len(okta_groups):
+					pbar.total = last_total = len(okta_groups)
+					pbar.refresh()
+
+			pbar.close()
 
 		return len(okta_users), len(okta_groups)
