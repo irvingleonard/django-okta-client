@@ -197,10 +197,10 @@ class OktaUserManager(BaseUserManager):
 		pbar_desc = 'Updating all Okta users' if include_deprovisioned else 'Updating non-deprovisioned Okta users'
 		pbar = TQDM(desc=pbar_desc, total=last_total, disable=not show_progress, unit='users', dynamic_ncols=True)
 		async for okta_user in okta_users:
-			user, created = await self.aget_or_create(login=okta_user.profile.login)
+			user, created = await sync_to_async(self.get_or_create)(login=okta_user.profile.login)
 			try:
 				await sync_to_async(user.update_from_okta_user)(okta_user)
-				await user.asave()
+				await sync_to_async(user.save)()
 			except Exception:
 				LOGGER.exception('User Okta update failed: %s', user)
 			else:
@@ -219,7 +219,7 @@ class OktaUserManager(BaseUserManager):
 			async for okta_group in okta_groups:
 				okta_members = await self._api_client('list_group_users', okta_group.id)
 				try:
-					group_members = [await self.aget(login=okta_member.profile.login) async for okta_member in okta_members]
+					group_members = [await sync_to_async(self.get)(login=okta_member.profile.login) async for okta_member in okta_members]
 				except self.model.DoesNotExist:
 					LOGGER.error("Missing members prevented the update of group: %s <- %s", okta_group.profile.name, okta_members)
 				else:
