@@ -18,13 +18,20 @@ LOGGER = getLogger(__name__)
 
 
 class OktaResultCollection:
-	"""
-
+	"""Okta result collection
+	Custom generator for Okta API queries.
 	"""
 
 	def __init__(self, results, response, buffer_size=25):
-		"""
+		"""Magic initialization
+		It expects the results of the initial query.
 
+		:param results: The results of the initial query.
+		:type results: list[any]
+		:param response: The response from the initial query.
+		:type response: oktaResponse
+		:param buffer_size: The size of the buffer.
+		:type buffer_size: int
 		"""
 
 		if not isinstance(results, Sequence):
@@ -39,15 +46,21 @@ class OktaResultCollection:
 		self._total = len(self._current_results)
 
 	def __aiter__(self):
-		"""
+		"""Asynchronous iterator
+		This class itself is an asynchronous iterator.
 
+		:return: self
+		:rtype: OktaResultCollection
 		"""
 
 		return self
 
 	async def __anext__(self):
-		"""
+		"""Asynchronous next
+		Pops one of the values from self._current_results. It includes logic to load more values (paginated API response) and to signal the exhaustion.
 
+		:return: the "next" result
+		:rtype: any
 		"""
 
 		if len(self._current_results) < self._buffer_size:
@@ -61,28 +74,21 @@ class OktaResultCollection:
 
 		return self._current_results.pop()
 
-		if not self._entries[self._current_generator][0]:
-			if not self._entries[self._current_generator][1].has_next():
-				self._current_generator += 1
-				if self._current_generator >= len(self._entries):
-					raise StopAsyncIteration
-				else:
-					return await self.__anext__()
-			self._entries[self._current_generator][0], err = await self._entries[self._current_generator][1].next()
-			self.size += len(self._entries[self._current_generator][0])
-			self._entries[self._current_generator][0].reverse()
-		return self._entries[self._current_generator][0].pop()
-
 	def __len__(self):
-		"""
-
+		"""Length
+		Implement the length protocol, unsupported in regular generators.
 		"""
 
 		return self._total
 
 	async def _load_results(self):
-		"""
+		"""Load more results
+		Lightly convoluted logic to retrieve extra results.
+		1. get the results from the next page of the request, if there's one
+		2. move to the next "request" and do the same
 
+		:return: the number of results loaded
+		:rtype: int
 		"""
 
 		if self._current_response.has_next():
@@ -103,8 +109,8 @@ class OktaResultCollection:
 				return 0
 
 	def append(self, *others):
-		"""
-
+		"""Append request
+		Include another request to the end of the collection.
 		"""
 
 		for other in others:
@@ -176,21 +182,6 @@ class OktaAPIClient:
 			return OktaResultCollection(results=result, response=response)
 		else:
 			return result
-
-		if err is not None:
-			raise RuntimeError(err)
-
-		LOGGER.warning('An okta response is: %s', dir(response))
-		LOGGER.warning('Exploring the okta result: %s', isinstance(result, Sequence))
-
-		if retrieve_all_pages:
-			while response.has_next():
-				partial, err = await response.next()
-				if err is not None:
-					raise RuntimeError(err)
-				result.extend(partial)
-
-		return result
 	
 	@staticmethod
 	def get_refresh_delta():
@@ -235,7 +226,7 @@ class OktaAPIClient:
 
 	async def ping_users_endpoint(self, required=False):
 		"""Ping users endpoint
-		Attempt a query to the users endpoint and report availability. Doesn't handle exceptions, it will let them bubble up.
+		Attempt a query to the users endpoint and report availability.
 
 		:return: True if the query succeeds.
 		:rtype: bool
