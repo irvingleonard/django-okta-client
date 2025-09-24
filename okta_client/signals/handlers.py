@@ -10,6 +10,8 @@ from django.contrib.auth.models import Group
 from django.db.models.signals import m2m_changed
 from django.dispatch import receiver
 
+from asgiref.sync import sync_to_async
+
 from .groups import user_joined_group, user_left_group
 from ..utils import report_signal_results
 
@@ -31,14 +33,14 @@ async def user_attribute_set_from_group(sender, **kwargs):
 			LOGGER.debug('User "%s" is becoming a super user because of group membership: %s', kwargs['user'], sender.name)
 			kwargs['user'].is_staff = True
 			kwargs['user'].is_superuser = True
-			await kwargs['user'].asave(update_fields=['is_staff', 'is_superuser'])
+			await sync_to_async(kwargs['user'].save)(update_fields=['is_staff', 'is_superuser'])
 			return
 
 	if not kwargs['user'].is_staff and ('STAFF_USER_GROUPS' in settings.OKTA_CLIENT['API']):
 		if sender.name in settings.OKTA_CLIENT['API']['STAFF_USER_GROUPS']:
 			LOGGER.debug('User "%s" is becoming a staff member because of group membership: %s', kwargs['user'], sender.name)
 			kwargs['user'].is_staff = True
-			await kwargs['user'].asave(update_fields=['is_staff'])
+			await sync_to_async(kwargs['user'].save)(update_fields=['is_staff'])
 
 
 @receiver(user_left_group)
@@ -59,7 +61,7 @@ async def user_attribute_remove_from_group(sender, **kwargs):
 			elif not kwargs['user'].is_superuser:
 				LOGGER.debug('User "%s" is losing staff member status by leaving group: %s', kwargs['user'], sender.name)
 				kwargs['user'].is_staff = False
-				await kwargs['user'].asave(update_fields=['is_staff'])
+				await sync_to_async(kwargs['user'].save)(update_fields=['is_staff'])
 
 	if (kwargs['user'].is_superuser or kwargs['user'].is_staff) and ('SUPER_USER_GROUPS' in settings.OKTA_CLIENT['API']):
 		if sender.name in settings.OKTA_CLIENT['API']['SUPER_USER_GROUPS']:
@@ -68,7 +70,7 @@ async def user_attribute_remove_from_group(sender, **kwargs):
 				LOGGER.debug('User "%s" is losing super user status by leaving group: %s', kwargs['user'], sender.name)
 				kwargs['user'].is_staff = keep_staff
 				kwargs['user'].is_superuser = False
-				await kwargs['user'].asave(update_fields=['is_staff', 'is_superuser'])
+				await sync_to_async(kwargs['user'].save)(update_fields=['is_staff', 'is_superuser'])
 
 
 @receiver(m2m_changed, sender=UserModel.groups.through)
@@ -80,11 +82,11 @@ async def signals_for_group_membership(sender, **kwargs):
 	results = []
 	if kwargs['action'] == 'post_add':
 		if kwargs['model'] is Group:
-			groups = [await kwargs['model'].objects.aget(pk=pk) for pk in kwargs['pk_set']]
+			groups = [await sync_to_async(kwargs['model'].objects.get)(pk=pk) for pk in kwargs['pk_set']]
 			for group in groups:
 				results += await user_joined_group.asend_robust(sender=group, user=kwargs['instance'])
 		elif kwargs['model'] is UserModel:
-			users = [await kwargs['model'].objects.aget(pk=pk) for pk in kwargs['pk_set']]
+			users = [await sync_to_async(kwargs['model'].objects.get)(pk=pk) for pk in kwargs['pk_set']]
 			for user in users:
 				results += await user_joined_group.asend_robust(sender=kwargs['instance'], user=user)
 		else:
@@ -94,11 +96,11 @@ async def signals_for_group_membership(sender, **kwargs):
 
 	elif kwargs['action'] == 'post_remove':
 		if kwargs['model'] is Group:
-			groups = [await kwargs['model'].objects.aget(pk=pk) for pk in kwargs['pk_set']]
+			groups = [await sync_to_async(kwargs['model'].objects.get)(pk=pk) for pk in kwargs['pk_set']]
 			for group in groups:
 				results += await user_left_group.asend_robust(sender=group, user=kwargs['instance'])
 		elif kwargs['model'] is UserModel:
-			users = [await kwargs['model'].objects.aget(pk=pk) for pk in kwargs['pk_set']]
+			users = [await sync_to_async(kwargs['model'].objects.get)(pk=pk) for pk in kwargs['pk_set']]
 			for user in users:
 				results += await user_left_group.asend_robust(sender=kwargs['instance'], user=user)
 		else:
