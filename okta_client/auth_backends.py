@@ -59,7 +59,7 @@ class OktaSAMLBackend(RemoteUserBackend):
 		if saml_attributes:
 			groups = saml_attributes.pop('groups', [])
 			LOGGER.debug('Updating user with SAML attributes: %s <- %s', login, saml_attributes)
-			user.update(saml_attributes)
+			user.update(**saml_attributes)
 			user.save()
 			if groups:
 				set_user_groups(user, groups)
