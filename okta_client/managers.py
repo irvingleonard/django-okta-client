@@ -12,7 +12,7 @@ from okta.models.user import User as OktaAPIUser
 from tqdm import tqdm as TQDM
 
 from .api_client import OktaAPIClient
-from .groups import set_group_members
+from .groups import set_group_members, set_user_groups
 
 LOGGER = getLogger(__name__)
 
@@ -90,7 +90,7 @@ class OktaUserManager(BaseUserManager):
 
 		user.set_groups_from_okta()
 		if groups is not None:
-			user.update_groups(groups)
+			set_user_groups(user, groups)
 
 		return user
 
@@ -136,7 +136,7 @@ class OktaUserManager(BaseUserManager):
 
 		user.set_groups_from_okta()
 		if groups is not None:
-			user.update_groups(groups)
+			set_user_groups(user, groups)
 
 		return user
 
