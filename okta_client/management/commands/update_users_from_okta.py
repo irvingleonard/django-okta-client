@@ -8,7 +8,6 @@ from logging import getLogger
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
-from asgiref.sync import async_to_sync
 from okta.exceptions.exceptions import OktaAPIException
 
 from ...api_client import OktaAPIClient
@@ -42,8 +41,8 @@ class Command(BaseCommand):
 		api_client = OktaAPIClient()
 
 		try:
-			async_to_sync(api_client.ping_users_endpoint)(required=True)
-		except (AttributeError, KeyError):
+			api_client.ping_users_endpoint()
+		except AttributeError:
 			raise CommandError("The API client doesn't seem to be configured")
 		except OktaAPIException as error_:
 			raise CommandError(f'There seems to be an issue with the Okta configuration; attempting to access the list of users yield: {error_}')
@@ -59,14 +58,14 @@ class Command(BaseCommand):
 				except UserModel.DoesNotExist:
 					failures.append(user)
 					continue
-				async_to_sync(user.update_from_okta)(force_update=True)
+				user.update_from_okta(force_update=True)
 				success_count += 1
 				if not options['no_groups']:
-					async_to_sync(user.set_groups_from_okta)()
+					user.set_groups_from_okta()
 					groups |= frozenset([group.name for group in user.groups.all()])
 			group_count = len(groups)
 		else:
-			success_count, group_count = async_to_sync(UserModel.objects.update_all_from_okta)(include_deprovisioned=not options['no_deprovisioned'], include_groups=not options['no_groups'], show_progress=True)
+			success_count, group_count = UserModel.objects.update_all_from_okta(include_deprovisioned=not options['no_deprovisioned'], include_groups=not options['no_groups'], show_progress=True)
 
 		if failures:
 			self.stdout.write(self.style.ERROR(f"Failed to update {len(failures)} users: {', '.join(failures)}"))

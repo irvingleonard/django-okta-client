@@ -11,7 +11,6 @@ from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedire
 from django.shortcuts import render
 from django.views import View
 
-from asgiref.sync import async_to_sync
 from rest_framework.permissions import IsAuthenticated as RESTIsAuthenticated
 from rest_framework.views import APIView
 
@@ -123,7 +122,7 @@ class OktaEventHooks(OktaEventHookMixin, APIView):
 		"""
 
 		try:
-			async_to_sync(self.handle_events)(request)
+			self.handle_events(request)
 		except (JSONDecodeError, UnicodeDecodeError):
 			return HttpResponseBadRequest()
 		else:

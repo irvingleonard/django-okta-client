@@ -8,7 +8,6 @@ from logging import getLogger
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import RemoteUserBackend
 
-from asgiref.sync import async_to_sync
 from rest_framework.authentication import TokenAuthentication as DjangoRESTTokenAuthentication
 
 from .api_client import OktaAPIClient
@@ -36,6 +35,8 @@ class OktaSAMLBackend(RemoteUserBackend):
 
 		if name == '_api_client':
 			value = OktaAPIClient()
+		elif name == '_api_endpoint_available_users':
+			value = self._api_client.ping_users_endpoint()
 		else:
 			return getattr(super(), name)
 		self.__setattr__(name, value)
@@ -66,8 +67,8 @@ class OktaSAMLBackend(RemoteUserBackend):
 		return user
 
 	def configure_user(self, request, user, created=True):
-		"""Configure the user
-		User attributes and group membership are updated from Okta. It will only do so if the Users API endpoint is available and the user is outdated.
+		"""Configure user
+		User attributes and group membership update from Okta.
 
 		:param request: the request object, not used so far
 		:type request: DjangoHTTPRequest
@@ -79,11 +80,11 @@ class OktaSAMLBackend(RemoteUserBackend):
 		:rtype: UserModel
 		"""
 
-		if user.is_outdated and async_to_sync(self._api_client.ping_users_endpoint)():
-			async_to_sync(user.update_from_okta)()
-			async_to_sync(user.set_groups_from_okta)()
+		if self._api_endpoint_available_users and user.is_outdated:
+			user.update_from_okta()
+			user.set_groups_from_okta()
 		return user
-
+		
 	def user_can_authenticate(self, remote_user):
 		"""Returns whether the user is allowed to authenticate
 		This backend should be used with SAML, which is a federated authentication scheme, so there shouldn't be a local permission check for authentication.

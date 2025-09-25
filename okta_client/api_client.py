@@ -2,123 +2,20 @@
 Here are some utility pieces.
 """
 
-from collections.abc import Sequence
 from datetime import timedelta as TimeDelta
 from logging import getLogger
 
 from django.conf import settings
 from django.core.cache import cache
 
+from asgiref.sync import async_to_sync
 from okta.client import Client as OktaClient
+from okta.exceptions.exceptions import OktaAPIException
 
 ERROR_CODE_MAP = {
 	'USER_NOT_FOUND' : 'E0000007',
 }
 LOGGER = getLogger(__name__)
-
-
-class OktaResultCollection:
-	"""Okta result collection
-	Custom generator for Okta API queries.
-	"""
-
-	def __init__(self, results, response, buffer_size=25):
-		"""Magic initialization
-		It expects the results of the initial query.
-
-		:param results: The results of the initial query.
-		:type results: list[any]
-		:param response: The response from the initial query.
-		:type response: oktaResponse
-		:param buffer_size: The size of the buffer.
-		:type buffer_size: int
-		"""
-
-		if not isinstance(results, Sequence):
-			raise ValueError('result must be a sequence')
-
-		self._current_response = response
-		self._current_results = results
-		self._current_results.reverse()
-		self._buffer_size = buffer_size
-
-		self._entries = []
-		self._total = len(self._current_results)
-
-	def __aiter__(self):
-		"""Asynchronous iterator
-		This class itself is an asynchronous iterator.
-
-		:return: self
-		:rtype: OktaResultCollection
-		"""
-
-		return self
-
-	async def __anext__(self):
-		"""Asynchronous next
-		Pops one of the values from self._current_results. It includes logic to load more values (paginated API response) and to signal the exhaustion.
-
-		:return: the "next" result
-		:rtype: any
-		"""
-
-		if len(self._current_results) < self._buffer_size:
-			try:
-				await self._load_results()
-			except StopAsyncIteration:
-				pass
-
-		if not self._current_results:
-			raise StopAsyncIteration
-
-		return self._current_results.pop()
-
-	def __len__(self):
-		"""Length
-		Implement the length protocol, unsupported in regular generators.
-		"""
-
-		return self._total
-
-	async def _load_results(self):
-		"""Load more results
-		Lightly convoluted logic to retrieve extra results.
-		1. get the results from the next page of the request, if there's one
-		2. move to the next "request" and do the same
-
-		:return: the number of results loaded
-		:rtype: int
-		"""
-
-		if self._current_response.has_next():
-			results, err = await self._current_response.next()
-			results.reverse()
-			self._current_results = results + self._current_results
-			self._total += len(results)
-			return len(results)
-		else:
-			if self._entries:
-				results, response = self._entries.pop()
-				self._current_response = response
-				results.reverse()
-				self._current_results = results + self._current_results
-				self._total += len(results)
-				return len(results)
-			else:
-				return 0
-
-	def append(self, *others):
-		"""Append request
-		Include another request to the end of the collection.
-		"""
-
-		for other in others:
-			if not isinstance(other, type(self)):
-				raise ValueError(f'Can only append {type(self)}')
-			results, response = other._current_results, other._current_response
-			results.reverse()
-			self._entries = other._entries + [[results, response]] + self._entries
 
 
 class OktaAPIClient:
@@ -160,7 +57,7 @@ class OktaAPIClient:
 		self.__setattr__(name, value)
 		return value
 
-	async def __call__(self, method_name, *args, retrieve_all_pages=True, **kwargs):
+	def __call__(self, method_name, *args, retrieve_all_pages=True, **kwargs):
 		"""Okta API request
 		Makes a request to the Okta API using the configured Okta client.
 
@@ -171,17 +68,26 @@ class OktaAPIClient:
 		:return: The result of the Okta API call.
 		"""
 
-		result = await getattr(self.okta_api_client, method_name)(*args, **kwargs)
+		result = async_to_sync(getattr(self.okta_api_client, method_name), )(*args, **kwargs)
 
 		if len(result) == 3:
 			result, response, err = result
+		elif len(result) == 2:
+			response, err = result
 		else:
 			raise RuntimeError('Unknown result: {}'.format(result))
 
-		if isinstance(result, Sequence):
-			return OktaResultCollection(results=result, response=response)
-		else:
-			return result
+		if err is not None:
+			raise RuntimeError(err)
+
+		if retrieve_all_pages:
+			while response.has_next():
+				partial, err = async_to_sync(response.next)()
+				if err is not None:
+					raise RuntimeError(err)
+				result.extend(partial)
+
+		return result
 	
 	@staticmethod
 	def get_refresh_delta():
@@ -197,7 +103,91 @@ class OktaAPIClient:
 		else:
 			return TimeDelta(seconds=0)
 
-	async def list_users(self, include_deprovisioned=False, **kwargs):
+	def get_user(self, *args, **kwargs):
+		"""Get user
+		Attempt to call the "get_user" endpoint and return the results.
+
+		:param args: positional argument parameters, passed as is to the "get_user" call
+		:type args: Any
+		:param kwargs: keyword argument parameters, passed as is to the "get_user" call
+		:type kwargs: Any
+		:return: the matching user or None
+		:rtype: OktaAPIUser|None
+		"""
+
+		try:
+			return self('get_user', *args, **kwargs)
+		except AttributeError:
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote user: %s | %s", args, kwargs)
+		except OktaAPIException as error_:
+			if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
+				LOGGER.exception('Unknown error occurred when retrieving Okta user: %s | %s', args, kwargs)
+
+		return None
+
+	def list_group_users(self, groupId, **kwargs):
+		"""Get group members
+		Attempt to call the "list_group_users" endpoint and return the results.
+
+		:param groupId: identifier for the group
+		:type groupId: str
+		:param kwargs: keyword argument parameters, passed as is to the "list_group_users" call
+		:type kwargs: Any
+		:return: the list of members
+		:rtype: list[OktaAPIUser]
+		"""
+
+		try:
+			return self('list_group_users', groupId, **kwargs)
+		except AttributeError:
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve group members: %s | %s", groupId, kwargs)
+		# except OktaAPIException as error_:
+		# 	if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
+		# 		LOGGER.exception('Unknown error occurred when retrieving Okta group members: %s | %s', groupId, kwargs)
+
+		return []
+
+	def list_user_groups(self, userId):
+		"""List user groups
+		Fetches the groups of which the user is a member.
+
+		:param userId: an identifier for the user; anything that "list_user_groups" can use
+		:type userId: str
+		:return: the list of user groups
+		:rtype: list[OktaAPIGroup]
+		"""
+
+		try:
+			return self('list_user_groups', userId)
+		except AttributeError:
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve user's groups: %s", userId)
+		except OktaAPIException as error_:
+			if error_.args[0]['errorCode'] != ERROR_CODE_MAP['USER_NOT_FOUND']:
+				LOGGER.exception("Unknown error occurred when retrieving Okta user's groups: %s", userId)
+
+		return []
+
+	def list_groups(self, **kwargs):
+		"""List all groups
+		A subset of groups can be returned that match a supported filter expression or search criteria. Different results are returned depending on specified queries in the request.
+		It will swallow the exceptions and report via logging, for your convenience.
+
+		:param kwargs: any filters or otherwise that will be passed as is to "list_groups"
+		:type kwargs: any
+		:return: a list of groups
+		:rtype: list[OktaAPIGroup]
+		"""
+
+		try:
+			return self('list_groups', query_params=kwargs)
+		except AttributeError:
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote groups: %s", kwargs)
+		except OktaAPIException as error_:
+			LOGGER.exception('Unknown error occurred when retrieving Okta groups: %s', kwargs)
+
+		return []
+
+	def list_users(self, include_deprovisioned=False, **kwargs):
 		"""List all users
 		A subset of users can be returned that match a supported filter expression or search criteria. Different results are returned depending on specified queries in the request.
 		It will swallow the exceptions and report via logging, for your convenience.
@@ -210,9 +200,13 @@ class OktaAPIClient:
 		:rtype: list[OktaAPIUser]
 		"""
 
-		await self.ping_users_endpoint(required=True)
-
-		result = await self('list_users', query_params=kwargs)
+		result = []
+		try:
+			result = self('list_users', query_params=kwargs)
+		except AttributeError:
+			LOGGER.debug("Okta API Client is not available, couldn't retrieve remote users: %s", kwargs)
+		except OktaAPIException as error_:
+			LOGGER.exception('Unknown error occurred when retrieving Okta users: %s', kwargs)
 
 		if include_deprovisioned:
 			if 'search' in kwargs:
@@ -220,22 +214,24 @@ class OktaAPIClient:
 			else:
 				kwargs['search'] = 'status eq "Deprovisioned"'
 
-			result.append(await self('list_users', query_params=kwargs))
+			try:
+				result += self('list_users', query_params=kwargs)
+			except AttributeError:
+				LOGGER.debug("Okta API Client is not available, couldn't retrieve remote users: %s", kwargs)
+			except OktaAPIException as error_:
+				LOGGER.exception('Unknown error occurred when retrieving Okta users: %s', kwargs)
 
 		return result
 
-	async def ping_users_endpoint(self, required=False):
+	def ping_users_endpoint(self):
 		"""Ping users endpoint
-		Attempt a query to the users endpoint and report availability.
+		Attempt a query to the users endpoint and report availability. Doesn't handle exceptions, it will let them bubble up.
 
 		:return: True if the query succeeds.
 		:rtype: bool
 		"""
 
 		try:
-			return len(await self('list_users', retrieve_all_pages=False, query_params={'limit':'1'})) > 0
+			return len(self('list_users', retrieve_all_pages=False, query_params={'limit':'1'})) > 0
 		except Exception:
-			if required:
-				raise
-			else:
-				return False
+			return False
